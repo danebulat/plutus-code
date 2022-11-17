@@ -54,7 +54,11 @@ library
 
         Beneficiary.OnChain,
         Beneficiary.OffChain,
-        Beneficiary.Emulator
+        Beneficiary.Emulator,
+
+        Parameterized.OnChain,
+        Parameterized.OffChain,
+        Parameterized.Emulator
 
     build-depends:
       base >= 4.9 && < 5,
