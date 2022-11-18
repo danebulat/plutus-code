@@ -65,10 +65,10 @@ instance V2UtilsTypeScripts.ValidatorTypes Simple where
 {-# INLINEABLE simpleType #-}
 simpleType :: BenParam -> Dat -> Redeem -> Contexts.ScriptContext -> Bool
 simpleType benp d r context =
-       traceIfFalse "Sorry the guess is not correct" (dData d == redeem r)
-    && traceIfFalse "Wrong pubkeyhash" signedBeneficiary
+       traceIfFalse "Guess is not correct"     (dData d == redeem r)
+    && traceIfFalse "Wrong pubkeyhash"         signedBeneficiary
     && traceIfFalse "Deadline not yet reached" deadlinePassed
-    && traceIfFalse "Not paid royalties" calculateRoyalties
+    && traceIfFalse "Not paid royalties"       calculateRoyalties
   where
     txInfo :: Contexts.TxInfo
     txInfo = Contexts.scriptContextTxInfo context

@@ -44,6 +44,7 @@ import qualified Parameterized.OnChain as OnChain
 -- ----------------------------------------------------------------------
 -- Data types
 
+-- Data for start action
 data StartParams = StartParams
   { spCreator     :: !Ledger.PaymentPubKeyHash
   , spBeneficiary :: !Ledger.PaymentPubKeyHash
@@ -55,6 +56,7 @@ data StartParams = StartParams
               DataAeson.FromJSON,
               DataOpenApiSchema.ToSchema)
 
+-- Data for grab action
 data GrabParams = GrabParams
   { gpCreator  :: !Ledger.PaymentPubKeyHash
   , gpDeadline :: !LedgerApiV2.POSIXTime
@@ -67,14 +69,15 @@ data GrabParams = GrabParams
 -- ----------------------------------------------------------------------
 -- Contract endpoints
 
-
 type BenSchema =
     PlutusContract.Endpoint "start" StartParams
     PlutusContract..\/
     PlutusContract.Endpoint "grab" GrabParams
 
 
+-- ----------------------------------------------------------------------
 -- start endpoint
+
 start :: PlutusContract.AsContractError e
       => StartParams
       -> PlutusContract.Contract w s e ()
@@ -89,14 +92,18 @@ start sp = do
              OnChain.beneficiary = spBeneficiary sp,
              OnChain.deadline    = spDeadline sp
            }
-    dat  = OnChain.Dat { OnChain.dData = spGuess sp }
+    dat  = OnChain.Dat {
+             OnChain.dData = spGuess sp
+           }
     val  = Ada.lovelaceValueOf $ spAmount sp
     tx   = Constraints.mustPayToOtherScript (OnChain.validatorHash p)
-           (LedgerApiV2.Datum $ PlutusTx.toBuiltinData dat) val    
+           (LedgerApiV2.Datum $ PlutusTx.toBuiltinData dat) val
     lookups = Constraints.plutusV2OtherScript $ OnChain.validator p
 
 
+-- ----------------------------------------------------------------------
 -- grab endpoint
+
 grab :: GrabParams -> PlutusContract.Contract w s Text ()
 grab GrabParams{..} = do
   beneficiary <- PlutusContract.ownFirstPaymentPubKeyHash
@@ -112,10 +119,12 @@ grab GrabParams{..} = do
             OnChain.beneficiary = beneficiary,
             OnChain.deadline    = gpDeadline
           }
-          r = OnChain.Redeem { OnChain.redeem = gpGuess }
+          r = OnChain.Redeem {
+            OnChain.redeem = gpGuess
+          }
       
       -- Finds the utxos associated to the beneficiary that have valid
-      -- deadline and guess number 
+      -- deadline and guess number
       maybeUtxo <- findUtxoInValidator param (OnChain.redeem r)
       case maybeUtxo of
         Nothing -> PlutusContract.logInfo @P.String $
@@ -125,14 +134,15 @@ grab GrabParams{..} = do
         Just (oref, o) -> do
           PlutusContract.logInfo @P.String $
             printf "Redeem utxo %s - with timing now at %s:" (P.show oref) (P.show now)
-          
-          let lookups  = Constraints.unspentOutputs (Map.singleton oref o) P.<>
+
+          -- UTXO found (param matches)
+          let lookups  = Constraints.unspentOutputs (Map.singleton oref o)     P.<>
                          Constraints.plutusV2OtherScript (OnChain.validator param)
               tx       = Constraints.mustSpendScriptOutput oref
                            (ScriptsLedger.Redeemer $ PlutusTx.toBuiltinData r) P.<>
                          Constraints.mustValidateIn (LedgerApiV2.from now)     P.<>
                          Constraints.mustPayToPubKey gpCreator (getTotalValuePay o)
-                         
+          
           submittedTx <- PlutusContract.submitTxConstraintsWith @OnChain.Simple lookups tx
           Monad.void $ PlutusContract.awaitTxConfirmed $ LedgerTx.getCardanoTxId submittedTx
           PlutusContract.logInfo @P.String $ "collected gifts"
@@ -155,8 +165,7 @@ getDatum (_, o) = do
 
 
 -- || checkUTXO
--- Check a UTXO's datum against our validation criteria
--- Check if datum matches
+-- Check a UTXO's datum against our validation criteria (datum matches)
 checkUTXO
     :: (LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)
     -> Integer
@@ -170,7 +179,7 @@ checkUTXO (oref, o) n = do
 
 
 -- || findUTXO
--- Return a UTXO that satisfies our validation criteria
+-- Return a UTXO that satisfies our validation criteria (datum matches)
 findUTXO
     :: [(LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)]
     -> Integer
@@ -201,6 +210,7 @@ getTotalValuePay :: LedgerTx.ChainIndexTxOut -> Ledger.Value
 getTotalValuePay o =
   Ada.toValue $ Ada.fromValue (LedgerTx._ciTxOutValue o) `Ada.divide` 10
 
+
 -- ----------------------------------------------------------------------
 -- Endpoints
 
@@ -217,7 +227,7 @@ endpoints = do
 -- Logging utils
 
 -- log simple message 
-logSimple
+logSimple 
     :: P.String
     -> PlutusContract.Contract w s e ()
 logSimple str = PlutusContract.logInfo @P.String $ printf str

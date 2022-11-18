@@ -46,11 +46,15 @@ library
         DataModule,
         Utils,
         HandlingTime,
+
+        Helper.Compiler,
         
         Week02.Gift,
         Week02.Burn,
         Week02.FortyTwo,
         Week02.IsData,
+
+        Simple.OnChain,
 
         Beneficiary.OnChain,
         Beneficiary.OffChain,
@@ -60,12 +64,8 @@ library
         Parameterized.OffChain,
         Parameterized.Emulator
 
+    -- Plutus dependencies
     build-depends:
-      base >= 4.9 && < 5,
-      aeson -any,
-      bytestring -any,
-      containers -any,
-      freer-extras -any,
       playground-common -any,
       plutus-contract -any,
       plutus-ledger -any,
@@ -74,13 +74,20 @@ library
       plutus-tx -any,
       plutus-tx-plugin -any,
       plutus-script-utils -any,
-      text -any,
-      lens -any,
-      --additionals
       cardano-api, 
       cardano-binary,
+      data-default
+
+    -- Other dependencies
+    build-depends:
+      base >= 4.9 && < 5,
+      aeson -any,
+      bytestring -any,
+      containers -any,
+      freer-extras -any,
+      openapi3,
+      text -any,
+      lens -any,
       serialise -any,
-      base16-bytestring,
-      data-default,
-      openapi3
+      base16-bytestring
     hs-source-dirs: src
