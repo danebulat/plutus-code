@@ -48,6 +48,7 @@ library
         HandlingTime,
 
         Helper.Compiler,
+        Helper.Deploy,
         
         Week02.Gift,
         Week02.Burn,
