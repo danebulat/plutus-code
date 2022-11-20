@@ -17,6 +17,9 @@ import qualified PlutusTx
 import qualified Parameterized.OnChain as ParamOnChain
 
 
+-- ----------------------------------------------------------------------
+-- Abstract functions
+
 -- Convert Plutus Data to Cardano API ScriptData
 dataToScriptData :: Data -> CApi.ScriptData
 dataToScriptData (Constr n xs) = CApi.ScriptDataConstructor n $ dataToScriptData <$> xs
@@ -46,6 +49,7 @@ writeValidator file = CApi.writeFileTextEnvelope @(PlutusScript PlutusScriptV2) 
                     . LBS.toStrict
                     . serialise
                     . V2LedgerApi.unValidatorScript
+
 
 -- ----------------------------------------------------------------------
 -- Specialised functions for contract examples

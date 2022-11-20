@@ -70,7 +70,7 @@ cardano-cli transaction build \
   --tx-in-datum-file paramDatum.json \
   --tx-in-redeemer-file paramRedeemer.json \
   --tx-in-collateral <TxHash>#<TxIx> \
-  --tx-out <TxHash>#<TxIx>              # 10% given to creator
+  --tx-out <TxHash>#<TxIx> \            # 10% given to creator
   --invalid-before <slot> \
   --required-signer-hash <key-hash> \   # explicitly specify required signature (beneficiary)
   --protocol-params-file protocol.json \

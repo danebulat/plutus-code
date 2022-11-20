@@ -61,6 +61,10 @@ library
         Beneficiary.OffChain,
         Beneficiary.Emulator,
 
+        -- homework exercise
+        TwoBeneficiaries.OnChain,
+        TwoBeneficiaries.OffChain,
+
         Parameterized.OnChain,
         Parameterized.OffChain,
         Parameterized.Emulator
