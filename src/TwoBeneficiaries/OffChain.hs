@@ -10,6 +10,7 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE RecordWildCards     #-} -- To allow notation like GrabParams {..}
+{-# LANGUAGE NumericUnderscores  #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
@@ -54,6 +55,10 @@ data GiveParams = GiveParams
               DataAeson.FromJSON,
               DataOpenApiSchema.ToSchema)
 
+data DeadlineFlag =
+  AfterDeadline | BeforeDeadline
+  deriving (P.Eq)
+
 
 -- ----------------------------------------------------------------------
 -- Give endpoint
@@ -65,11 +70,11 @@ give gp = do
     pkh <- PlutusContract.ownFirstPaymentPubKeyHash
 
     let dat     = OnChain.Dat {
-                    OnChain.beneficiary1 = gpBeneficiary gp,
-                    OnChain.beneficiary2 = pkh,
+                    OnChain.beneficiary1 = pkh,
+                    OnChain.beneficiary2 = gpBeneficiary gp,
                     OnChain.deadline     = gpDeadline gp
                   }
-              
+        
         lookups = Constraints.plutusV2OtherScript OnChain.validator
         tx      = Constraints.mustPayToOtherScript
                     (OnChain.validatorHash)
@@ -86,17 +91,24 @@ give gp = do
 grab :: forall w s e. PlutusContract.AsContractError e
      => PlutusContract.Contract w s e ()
 grab = do
+    PlutusContract.logInfo @P.String $ printf ">>> Starting grab..."
     now   <- PlutusContract.currentTime
     pkh   <- PlutusContract.ownFirstPaymentPubKeyHash
     utxos <- PlutusContract.utxosAt OnChain.address
+
+    PlutusContract.logInfo @P.String $ printf ">>> All UTXO length: %d" (P.length utxos)
+    PlutusContract.logInfo @P.String $ printf ">>> Now: %d" $ LedgerApiV2.getPOSIXTime now
 
     let utxos1 = Map.filter (isSuitable $ \dat ->
                    OnChain.beneficiary1 dat == pkh && now <= OnChain.deadline dat) utxos
         utxos2 = Map.filter (isSuitable $ \dat ->
                    OnChain.beneficiary2 dat == pkh && now > OnChain.deadline dat) utxos
 
-    unless (Map.null utxos1) $ spendUtxos utxos1 now False
-    unless (Map.null utxos2) $ spendUtxos utxos2 now True
+    PlutusContract.logInfo @P.String $ printf ">>> UTXO length 1: %d" (P.length utxos1)
+    PlutusContract.logInfo @P.String $ printf ">>> UTXO length 2: %d" (P.length utxos2)
+
+    Monad.unless (Map.null utxos1) $ spendUtxos utxos1 now BeforeDeadline
+    Monad.unless (Map.null utxos2) $ spendUtxos utxos2 now AfterDeadline
   where
     isSuitable :: (OnChain.Dat -> Bool) -> LedgerTx.ChainIndexTxOut -> Bool
     isSuitable p o = let (_, mDat) = LedgerTx._ciTxOutScriptDatum o in
@@ -104,6 +116,7 @@ grab = do
         Nothing  -> False
         Just dat -> let maybeDat = PlutusTx.fromBuiltinData (LedgerApiV2.getDatum dat)
                     in maybe False p maybeDat
+                        
 
 
 -- ----------------------------------------------------------------------
@@ -112,11 +125,15 @@ grab = do
 spendUtxos :: forall w s e. PlutusContract.AsContractError e
            => Map.Map LedgerTx.TxOutRef LedgerTx.ChainIndexTxOut
            -> LedgerApiV2.POSIXTime
-           -> Bool
+           -> DeadlineFlag
            -> PlutusContract.Contract w s e ()
-spendUtxos utxos now b = do
+spendUtxos utxos now f = do
+  PlutusContract.logInfo @P.String $ printf ">>> Starting spend..."
   let orefs     = fst <$> Map.toList utxos
-      interval' = if b then LedgerIntervalV1.to now else LedgerIntervalV1.from now
+      interval' = --LedgerIntervalV1.interval now (now + 10_000) -- 10 second tx interval
+        if f P.== BeforeDeadline
+                    then LedgerIntervalV1.to now
+                    else LedgerIntervalV1.from now
       lookups   = Constraints.unspentOutputs utxos P.<>
                   Constraints.plutusV2OtherScript OnChain.validator
 
@@ -125,4 +142,22 @@ spendUtxos utxos now b = do
                    | oref <- orefs] P.<>
                    Constraints.mustValidateIn interval'
   Monad.void $ PlutusContract.submitTxConstraintsWith @OnChain.VTypes lookups tx
+
+
+-- ----------------------------------------------------------------------
+-- Endpoints 
+
+type TwoBeneficiariesSchema =
+            PlutusContract.Endpoint "give" GiveParams
+            PlutusContract..\/
+            PlutusContract.Endpoint "grab" ()
+
+
+endpoints :: PlutusContract.Contract () TwoBeneficiariesSchema Text ()
+endpoints = do
+    PlutusContract.awaitPromise (give' `PlutusContract.select` grab')
+    endpoints
+  where
+    give' = PlutusContract.endpoint @"give" give
+    grab' = PlutusContract.endpoint @"grab" $ const grab
 

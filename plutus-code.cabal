@@ -64,6 +64,7 @@ library
         -- homework exercise
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,
+        TwoBeneficiaries.Emulator,
 
         Parameterized.OnChain,
         Parameterized.OffChain,
