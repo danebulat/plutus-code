@@ -1,14 +1,20 @@
 # Parameterised Contract Plan
 
-Creator:      <add address and key files here for reference>
-Beneficiary:  <add address and key files here for reference>
+## Overview 
 
+Required pre-requisites:
 
+- **Creator pkh:** The wallet that deposits funds and receives a 10% royalty
+  when the script UTXO is spent.
+  
+- **Beneficiary pkh:** The wallet that is allowed to unlock the script UTXO.
+  Will receive 90% of funds locked to the script.
 
-Creator payment pub key hash:      <add creator pkh>
-Beneficiary payment pub key hash:  <add beneficiary pkh>
-Deadine:                           <add deadline POSIX timestamp>
+- **Deadline:** From when the beneficiary is allowed to unlock the funds at
+  the script UTXO.
 
+- **Guess:** An integer stored in the script's datum that the beneficiary 
+  must provide in the redeemer when attempting to unlock funds.
 
 ## Generate Script Address 
 
@@ -29,8 +35,6 @@ cardano-cli address built \
   --testnet-magic 1 \
   --out-file param.addr
 ```
-
-addr_test1wzdkhxwtpdfrkwqlud4vdaqmgdptesdg7fzf3mxm82cu5ssgf35pn
 
 ## Producing Tx
 
