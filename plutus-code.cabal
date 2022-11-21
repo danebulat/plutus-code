@@ -68,7 +68,8 @@ library
         TwoBeneficiaries.Emulator,
 
         Vesting.OnChain,
-
+        Vesting.OffChain,
+        
         Parameterized.OnChain,
         Parameterized.OffChain,
         Parameterized.Emulator
