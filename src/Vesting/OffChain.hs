@@ -108,9 +108,10 @@ grab = do
 -- ----------------------------------------------------------------------
 -- Utility functions
 
-isSuitable :: (OnChain.Dat -> Bool)         -- filter predicate 
-           -> LedgerTx.ChainIndexTxOut      -- utxo
-           -> Bool                          -- valid or invalid
+isSuitable
+    :: (OnChain.Dat -> Bool)         -- filter predicate 
+    -> LedgerTx.ChainIndexTxOut      -- utxo
+    -> Bool                          -- valid or invalid
 isSuitable p o =
   case LedgerTx._ciTxOutScriptDatum o of
     (_, Nothing)  -> False
@@ -119,11 +120,28 @@ isSuitable p o =
       in maybe False p mDat
 
 
-utxoPred :: Ledger.PaymentPubKeyHash   -- spending pkh
-              -> LedgerApiV2.POSIXTime      -- now 
-              -> OnChain.Dat                -- datum of found utxo
-              -> Bool
-utxoPred pkh now dat = OnChain.deadline dat <= now
+utxoPred
+    :: Ledger.PaymentPubKeyHash      -- spending pkh
+    -> LedgerApiV2.POSIXTime         -- now 
+    -> OnChain.Dat                   -- datum of found utxo
+    -> Bool
+utxoPred pkh now dat = OnChain.deadline dat    <= now
                     && OnChain.beneficiary dat == pkh
         
   
+-- ----------------------------------------------------------------------
+-- Endpoints 
+
+type VestingSchema =
+            PlutusContract.Endpoint "give" GiveParams
+            PlutusContract..\/
+            PlutusContract.Endpoint "grab" ()
+
+
+endpoints :: PlutusContract.Contract () VestingSchema Text ()
+endpoints = do
+    PlutusContract.awaitPromise (give' `PlutusContract.select` grab')
+    endpoints
+  where
+    give' = PlutusContract.endpoint @"give" give
+    grab' = PlutusContract.endpoint @"grab" $ const grab
