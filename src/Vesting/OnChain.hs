@@ -14,7 +14,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module TwoBeneficiaries.OnChain where
+module Vesting.OnChain where
 
 import PlutusTx
 import PlutusTx.Prelude
@@ -30,62 +30,51 @@ import qualified Plutus.V2.Ledger.Contexts as Context
 
 
 -- ----------------------------------------------------------------------
--- Data types
+-- Data types 
 
 data Dat = Dat
-  { beneficiary1 :: Ledger.PaymentPubKeyHash
-  , beneficiary2 :: Ledger.PaymentPubKeyHash
-  , deadline     :: V2LedgerApi.POSIXTime
+  { beneficiary :: Ledger.PaymentPubKeyHash
+  , deadline    :: V2LedgerApi.POSIXTime
   } deriving P.Show
 
 PlutusTx.unstableMakeIsData ''Dat
 
 
 -- ----------------------------------------------------------------------
--- Set Datum and Redeemer Types
+-- Set Datum and Redeemer types 
 
 data VTypes
-instance V2UtilsTypeScripts.ValidatorTypes VTypes where 
+instance V2UtilsTypeScripts.ValidatorTypes VTypes where
   type instance RedeemerType VTypes = ()
   type instance DatumType    VTypes = Dat
 
 
 -- ----------------------------------------------------------------------
--- Validator Script
+-- Validator script 
 
-{-# INLINEABLE validateSigner #-}
-validateSigner :: Dat -> () -> Contexts.ScriptContext -> Bool
-validateSigner dat _ context =
-    traceIfFalse "Wrong pubkeyhash or deadline problem" $
-      (checkSigner (beneficiary1 dat) && beforeDeadline) ||
-      (checkSigner (beneficiary2 dat) && afterDeadline)
+{-# INLINEABLE mkValidator #-}
+mkValidator :: Dat -> () -> Context.ScriptContext -> Bool
+mkValidator dat _ context = signedByBeneficiary && deadlinePassed
   where
     txInfo :: Contexts.TxInfo
     txInfo = Contexts.scriptContextTxInfo context
-    
-    -- check if the tx was signed by either beneficiary
-    checkSigner :: Ledger.PaymentPubKeyHash -> Bool
-    checkSigner pkh = Contexts.txSignedBy txInfo
-      (Ledger.unPaymentPubKeyHash pkh)
 
-    -- check if tx interval is before or after the deadline
-    beforeDeadline :: Bool
-    beforeDeadline = LedgerIntervalV1.contains
-      (LedgerIntervalV1.to $ deadline dat)
-      (Context.txInfoValidRange txInfo)
+    signedByBeneficiary :: Bool
+    signedByBeneficiary = Context.txSignedBy txInfo
+      (Ledger.unPaymentPubKeyHash $ beneficiary dat)
 
-    afterDeadline :: Bool
-    afterDeadline = LedgerIntervalV1.contains
-      (LedgerIntervalV1.from $ 1 + deadline dat)
-      (Context.txInfoValidRange txInfo)
-    
+    deadlinePassed :: Bool
+    deadlinePassed = LedgerIntervalV1.contains
+      (LedgerIntervalV1.from $ deadline dat)
+      (V2LedgerApi.txInfoValidRange txInfo)
+
 
 -- ----------------------------------------------------------------------
 -- Boilerplate 
 
 typedValidator :: V2UtilsTypeScripts.TypedValidator VTypes
 typedValidator = V2UtilsTypeScripts.mkTypedValidator @VTypes
-    $$(compile [|| validateSigner ||])
+    $$(compile [|| mkValidator ||])
     $$(compile [|| wrap ||])
   where
     wrap = V2UtilsTypeScripts.mkUntypedValidator @Dat @()
