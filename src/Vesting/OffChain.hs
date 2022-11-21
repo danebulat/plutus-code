@@ -60,9 +60,10 @@ data GiveParams = GiveParams
 -- ----------------------------------------------------------------------
 -- Give endpoint (producer)
 
-give :: forall w s e. PlutusContract.AsContractError e
-     => GiveParams
-     -> PlutusContract.Contract w s e ()
+give
+    :: forall w s e. PlutusContract.AsContractError e
+    => GiveParams
+    -> PlutusContract.Contract w s e ()
 give GiveParams{..} = do
   let dat = OnChain.Dat {
               OnChain.beneficiary = gpBeneficiary,
@@ -81,8 +82,9 @@ give GiveParams{..} = do
 -- ----------------------------------------------------------------------
 -- Grab endpoint (consumer)
 
-grab :: forall w s e. PlutusContract.AsContractError e
-     => PlutusContract.Contract w s e ()
+grab
+    :: forall w s e. PlutusContract.AsContractError e
+    => PlutusContract.Contract w s e ()
 grab = do
   pkh   <- PlutusContract.ownFirstPaymentPubKeyHash
   now   <- PlutusContract.currentTime
@@ -127,7 +129,7 @@ utxoPred
     -> Bool
 utxoPred pkh now dat = OnChain.deadline dat    <= now
                     && OnChain.beneficiary dat == pkh
-        
+
   
 -- ----------------------------------------------------------------------
 -- Endpoints 

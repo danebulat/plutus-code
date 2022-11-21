@@ -69,6 +69,7 @@ library
 
         Vesting.OnChain,
         Vesting.OffChain,
+        Vesting.Emulator,
         
         Parameterized.OnChain,
         Parameterized.OffChain,
