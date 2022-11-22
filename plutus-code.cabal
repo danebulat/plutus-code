@@ -68,6 +68,7 @@ library
 
         Guess.OnChain,
         Guess.OffChain,
+        Guess.Emulator,
 
         -- other examples
         TwoBeneficiaries.OnChain,

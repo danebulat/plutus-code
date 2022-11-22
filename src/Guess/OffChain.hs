@@ -127,10 +127,12 @@ grab GrabParams{..} = do
       Monad.void $ PlutusContract.awaitTxConfirmed (LedgerTx.getCardanoTxId submittedTx)
       PlutusContract.logInfo @P.String "Collected gifts"
 
+
 -- ----------------------------------------------------------------------
 -- Helper function
 
 type TxOutTup = (LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)
+
 
 getDatum :: TxOutTup -> Maybe OnChain.Dat
 getDatum (_, o) = do
@@ -140,6 +142,7 @@ getDatum (_, o) = do
         Nothing -> Nothing
         dat -> dat
 
+
 checkUTXO :: TxOutTup -> Integer -> Bool
 checkUTXO (oref, o) n =
   case getDatum (oref, o) of
@@ -148,11 +151,17 @@ checkUTXO (oref, o) n =
       | dData == n -> True
       | otherwise  -> False
 
+
 findUTXO :: [TxOutTup] -> Integer -> Maybe TxOutTup
 findUTXO [] _ = Nothing
-fundUTXO ((oref, o) : xs) n
-  | checkUTXO (oref, o) n = return (oref, o)
-  | otherwise = findUTXO xs n
+findUTXO [(oref, o)] n = do
+    if checkUTXO (oref, o) n
+      then return (oref, o)
+      else Nothing
+findUTXO ((oref, o):xs) n
+    | checkUTXO (oref, o) n = return (oref, o)
+    | otherwise = findUTXO xs n
+
 
 findUtxoInValidator :: Integer -> PlutusContract.Contract w s Text (Maybe TxOutTup)
 findUtxoInValidator n = do
