@@ -67,6 +67,7 @@ library
         Parameterized.Emulator,
 
         Guess.OnChain,
+        Guess.OffChain,
 
         -- other examples
         TwoBeneficiaries.OnChain,

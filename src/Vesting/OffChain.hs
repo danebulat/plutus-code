@@ -15,9 +15,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-
 module Vesting.OffChain where
-
 
 import qualified Control.Monad             as Monad (void, unless, when)
 import qualified GHC.Generics              as GHCGenerics (Generic)
