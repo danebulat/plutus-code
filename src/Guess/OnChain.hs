@@ -7,14 +7,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 -- Required to use custom data types
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE TypeApplications      #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Vesting.OnChain where
+module Guess.OnChain where
 
 import PlutusTx
 import PlutusTx.Prelude
@@ -29,60 +29,53 @@ import qualified Ledger (PaymentPubKeyHash, unPaymentPubKeyHash)
 
 
 -- ----------------------------------------------------------------------
--- Data types 
+-- Data types
 
-data Dat = Dat
-  { beneficiary :: Ledger.PaymentPubKeyHash
-  , deadline    :: V2LedgerApi.POSIXTime
+newtype Redeem = Redeem
+  { redeem :: Integer
+  } deriving P.Show
+
+PlutusTx.unstableMakeIsData ''Redeem
+
+newtype Dat = Dat
+  { dData :: Integer
   } deriving P.Show
 
 PlutusTx.unstableMakeIsData ''Dat
 
 
 -- ----------------------------------------------------------------------
--- Set Datum and Redeemer types 
+-- Validator types
 
 data VTypes
 instance V2UtilsTypeScripts.ValidatorTypes VTypes where
-  type instance RedeemerType VTypes = ()
+  type instance RedeemerType VTypes = Redeem
   type instance DatumType    VTypes = Dat
 
 
 -- ----------------------------------------------------------------------
--- Validator script 
+-- Validator script
 
-{-# INLINEABLE mkValidator #-}
-mkValidator :: Dat -> () -> Contexts.ScriptContext -> Bool
-mkValidator dat _ context = signedByBeneficiary && deadlinePassed
-  where
-    txInfo :: Contexts.TxInfo
-    txInfo = Contexts.scriptContextTxInfo context
-
-    signedByBeneficiary :: Bool
-    signedByBeneficiary = Contexts.txSignedBy txInfo
-      (Ledger.unPaymentPubKeyHash $ beneficiary dat)
-
-    deadlinePassed :: Bool
-    deadlinePassed = LedgerIntervalV1.contains
-      (LedgerIntervalV1.from $ deadline dat)
-      (V2LedgerApi.txInfoValidRange txInfo)
+{-# INLINEABLE simpleValidator #-}
+simpleValidator :: Dat -> Redeem -> Contexts.ScriptContext -> Bool
+simpleValidator d r _ = traceIfFalse "Incorrect guess" (dData d == redeem r)
 
 
 -- ----------------------------------------------------------------------
--- Boilerplate 
+-- Boilerplate
 
-typedValidator :: V2UtilsTypeScripts.TypedValidator VTypes
-typedValidator = V2UtilsTypeScripts.mkTypedValidator @VTypes
-    $$(compile [|| mkValidator ||])
-    $$(compile [|| wrap ||])
+simpleTypeV :: V2UtilsTypeScripts.TypedValidator VTypes
+simpleTypeV = V2UtilsTypeScripts.mkTypedValidator @VTypes
+    $$( PlutusTx.compile [|| simpleValidator ||] )
+    $$( PlutusTx.compile [|| wrap ||] )
   where
-    wrap = V2UtilsTypeScripts.mkUntypedValidator @Dat @()
+    wrap = V2UtilsTypeScripts.mkUntypedValidator @Dat @Redeem
 
 validator :: V2LedgerApi.Validator
-validator = V2UtilsTypeScripts.validatorScript typedValidator
+validator = V2UtilsTypeScripts.validatorScript simpleTypeV
 
 validatorHash :: V2LedgerApi.ValidatorHash
-validatorHash = V2UtilsTypeScripts.validatorHash typedValidator
+validatorHash = V2UtilsTypeScripts.validatorHash simpleTypeV
 
 address :: V1LAddress.Address
 address = V1LAddress.scriptHashAddress validatorHash

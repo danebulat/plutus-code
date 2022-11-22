@@ -83,9 +83,10 @@ simpleType benp d r context =
       (Contexts.txInfoValidRange txInfo)
 
     -- Calculate minimum royalites to pay to creator
+    -- NOTE: If more than one input exists, add all input values to calculate the 10%
     adaRoyalties :: Maybe Ada.Ada
     adaRoyalties = do
-      validatedValue <- Contexts.txOutValue .    -- get value of utxo to spend (Value)
+      validatedValue <- Contexts.txOutValue .    -- get value of tx that will be spent
                   Contexts.txInInfoResolved <$>  -- get output to spend (TxOut)
                   Contexts.findOwnInput context  -- get input of pending tx (Maybe TxInInfo)
       Just $ Ada.fromValue validatedValue `Ada.divide` 10

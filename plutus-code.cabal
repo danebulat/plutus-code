@@ -62,7 +62,13 @@ library
         Beneficiary.OffChain,
         Beneficiary.Emulator,
 
-        -- homework exercise
+        Parameterized.OnChain,
+        Parameterized.OffChain,
+        Parameterized.Emulator,
+
+        Guess.OnChain,
+
+        -- other examples
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,
         TwoBeneficiaries.Emulator,
@@ -70,10 +76,6 @@ library
         Vesting.OnChain,
         Vesting.OffChain,
         Vesting.Emulator,
-        
-        Parameterized.OnChain,
-        Parameterized.OffChain,
-        Parameterized.Emulator
 
     -- Plutus dependencies
     build-depends:

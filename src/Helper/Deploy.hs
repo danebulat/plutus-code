@@ -15,7 +15,7 @@ import qualified Ledger
 import qualified PlutusTx
 
 import qualified Parameterized.OnChain as ParamOnChain
-
+import qualified Vesting.OnChain       as VestingOnChain
 
 -- ----------------------------------------------------------------------
 -- Abstract functions
@@ -54,6 +54,7 @@ writeValidator file = CApi.writeFileTextEnvelope @(PlutusScript PlutusScriptV2) 
 -- ----------------------------------------------------------------------
 -- Specialised functions for contract examples
 
+-- Parameterized 
 writeParameterisedDatum :: IO ()
 writeParameterisedDatum = writeJSON "testnet/paramDatum.json"
     $ ParamOnChain.Dat { ParamOnChain.dData = 20 }
@@ -73,3 +74,21 @@ writeParameterisedValidator =
                                "1ca9410b9c346768a410f8aa3599ad6ff134864e7381e2cb8c83db0a",
     ParamOnChain.deadline    = 1609251373999
   }
+
+
+-- Vesting
+writeVestingDatum :: IO ()
+writeVestingDatum = writeJSON "testnet/vestingDatum.json"
+    $ VestingOnChain.Dat {
+        VestingOnChain.beneficiary = Ledger.PaymentPubKeyHash
+                                     "1ca9410b9c346768a410f8aa3599ad6ff134864e7381e2cb8c83db0a",
+        VestingOnChain.deadline    = 1669063800000
+      }
+
+writeVestingRedeemer :: IO ()
+writeVestingRedeemer = writeUnit 
+
+writeVestingValidator :: IO (Either (CApi.FileError ()) ())
+writeVestingValidator =
+  writeValidator "testnet/vesting.plutus" VestingOnChain.validator
+                            
