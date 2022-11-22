@@ -25,7 +25,7 @@ import Data.Void                           (Void)
 import qualified Data.Map                  as Map
 import Data.Text                           (Text, replicate)
 import Text.Printf                         (printf)
-                                           
+
 import qualified PlutusTx                  
 import PlutusTx.Prelude                    
 import qualified Plutus.Contract           as PlutusContract

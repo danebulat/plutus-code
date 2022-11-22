@@ -70,6 +70,8 @@ library
         Guess.OffChain,
         Guess.Emulator,
 
+        CrowdFunding.OnChain,
+
         -- other examples
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,
