@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module DataModule where
+module Basics.DataModule where
 
 import PlutusTx
 import PlutusTx.Builtins (mkI, mkB, mkList, mkMap)

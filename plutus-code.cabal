@@ -42,21 +42,24 @@ library
     import: lang
 
     exposed-modules:
-        MyModule,
-        DataModule,
         Utils,
-        HandlingTime,
-        ContractMonad,
 
+        -- basic reference
+        Basics.ContractMonad,
+        Basics.DataModule,
+        Basics.HandlingTime,
+        Basics.HandlingValue,
+        Basics.MyModule,
+
+        -- compile scripts 
         Helper.Compiler,
         Helper.Deploy,
-        
+
+        -- contract examples
         Week02.Gift,
         Week02.Burn,
         Week02.FortyTwo,
         Week02.IsData,
-
-        Simple.OnChain,
 
         Beneficiary.OnChain,
         Beneficiary.OffChain,
@@ -80,6 +83,8 @@ library
         Vesting.OnChain,
         Vesting.OffChain,
         Vesting.Emulator,
+
+        Simple.OnChain
 
     -- Plutus dependencies
     build-depends:

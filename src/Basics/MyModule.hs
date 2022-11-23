@@ -1,4 +1,4 @@
-module MyModule where
+module Basics.MyModule where
 
 import Data.Default
 import Ledger          (POSIXTime(..))

@@ -1,4 +1,4 @@
-module HandlingTime where 
+module Basics.HandlingTime where 
 
 import Plutus.V1.Ledger.Interval
 import qualified Plutus.V2.Ledger.Api as V2LedgerAPI

@@ -102,6 +102,9 @@ validatorCrowdFundTx params dat red context =
                      (checkTxSignerWith $ beneficiary params)   &&
         traceIfFalse "deadline not passed" (not beforeDeadline) &&
         traceIfFalse "target not met" targetMet
+
+        -- TODO: Figure out how to refund contributors if
+        -- the target was not met.
   where
     txInfo :: V2LedgerApi.TxInfo
     txInfo = V2LedgerApi.scriptContextTxInfo context

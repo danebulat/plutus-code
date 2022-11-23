@@ -3,7 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
-module ContractMonad where
+module Basics.ContractMonad where
 
 import Control.Monad.Freer.Extras as Extras
 import Data.Functor               (void)
