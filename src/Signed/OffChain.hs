@@ -15,7 +15,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Free.OffChain where 
+module Signed.OffChain where
 
 import  Control.Monad                      (void, unless, when)
 import qualified GHC.Generics              as GHCGenerics (Generic)
@@ -27,7 +27,7 @@ import qualified Data.Map                  as Map
 import Data.Text                           (Text, replicate)
 import qualified Data.Text                 as T
 import Text.Printf                         (printf)
-                                           
+
 import qualified PlutusTx                  
 import PlutusTx.Prelude                    
 import qualified Plutus.Contract           as PlutusContract
@@ -40,11 +40,12 @@ import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Interval as LedgerIntervalV1
 import qualified Plutus.V1.Ledger.Value    as Value
 
-import qualified Free.OnChain              as OnChain
+import qualified Signed.OnChain            as OnChain
 
 
 -- ----------------------------------------------------------------------
 -- Data types 
+
 
 data MintParams = MintParams
   { mpTokenName :: !LedgerApiV2.TokenName
@@ -67,8 +68,11 @@ type FreeSchema =
 
 mint :: MintParams -> PlutusContract.Contract w FreeSchema T.Text ()
 mint mp = do
-  let val     = Value.singleton OnChain.curSymbol (mpTokenName mp) (mpAmount mp)
-      lookups = Constraints.plutusV2MintingPolicy OnChain.policy
+  pkh <- PlutusContract.ownFirstPaymentPubKeyHash
+  PlutusContract.logInfo @P.String $ printf "Using pkh: %s" (P.show pkh)
+
+  let val     = Value.singleton (OnChain.curSymbol pkh) (mpTokenName mp) (mpAmount mp)
+      lookups = Constraints.plutusV2MintingPolicy (OnChain.policy pkh)
       tx      = Constraints.mustMintValueWithRedeemer Ledger.unitRedeemer val
 
   ledgerTx <- PlutusContract.submitTxConstraintsWith @Void lookups tx
@@ -84,3 +88,4 @@ endpoints = mint' >> endpoints
   where
     mint' = PlutusContract.awaitPromise $
               PlutusContract.endpoint @"mint" mint
+

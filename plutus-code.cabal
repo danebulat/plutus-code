@@ -80,6 +80,10 @@ library
         Free.OffChain,
         Free.Emulator,
 
+        Signed.OnChain,
+        Signed.OffChain,
+        Signed.Emulator,
+
         -- other examples
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,
