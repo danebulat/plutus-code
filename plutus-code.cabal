@@ -75,6 +75,11 @@ library
 
         CrowdFunding.OnChain,
 
+        -- policy scripts, native assets
+        Free.OnChain,
+        Free.OffChain,
+        Free.Emulator,
+
         -- other examples
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,
