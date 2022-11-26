@@ -88,6 +88,9 @@ library
         NFT01.OffChain,
         NFT01.Emulator,
 
+        Week06.OnChain,
+        Week06.Utils,
+
         -- other examples
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,
@@ -111,7 +114,13 @@ library
       plutus-script-utils -any,
       cardano-api, 
       cardano-binary,
-      data-default
+      data-default,
+
+      -- added
+      cardano-crypto-class,
+      cardano-ledger-core,
+      cardano-ledger-shelley,
+      cardano-wallet-core
 
     -- Other dependencies
     build-depends:
