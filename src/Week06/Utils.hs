@@ -82,7 +82,7 @@ writeValidator file =
 
 writeMintingPolicy :: FilePath -> LedgerApiV2.MintingPolicy -> IO (Either (FileError ()) ())
 writeMintingPolicy file =
-    writeFileTextEnvelope @(PlutusScript PlutusScriptV1) file Nothing
+    writeFileTextEnvelope @(PlutusScript PlutusScriptV2) file Nothing
   . PlutusScriptSerialised        -- wrap ShortByteString in this constructor
   . SBS.toShort
   . LBS.toStrict
