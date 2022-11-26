@@ -123,7 +123,7 @@ unsafeTokenNameToHex =
 
 
 -- -------------------------------------------------------------------
--- getCredentials: Extracts the public key hashes contained in
+-- getCredentials: Extracts the public key hash contained in
 -- a non-script address. Returns nothing if any such script or
 -- pointer is involved, otherwise return the pkh and optional
 -- staking pkh.
