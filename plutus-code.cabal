@@ -89,6 +89,8 @@ library
         NFT01.Emulator,
 
         Week06.OnChain,
+        Week06.OffChain,
+        Week06.Emulator,
         Week06.Utils,
 
         -- other examples
