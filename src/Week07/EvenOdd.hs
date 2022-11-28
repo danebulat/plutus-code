@@ -6,6 +6,9 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+
 -- Required to use custom data types
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -15,6 +18,10 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 module Week07.EvenOdd where
+
+import qualified GHC.Generics                                    as GHCGenerics (Generic)
+import qualified Data.Aeson                                      as DataAeson (ToJSON, FromJSON)
+import qualified Data.OpenApi.Schema                             as DataOpenApiSchema (ToSchema)
 
 import PlutusTx
 import PlutusTx.Prelude
@@ -41,7 +48,11 @@ data Game = Game
   , gPlayDeadline   :: !LedgerApiV2.POSIXTime         -- deadline for 2nd player to do tx
   , gRevealDeadline :: !LedgerApiV2.POSIXTime         -- deadline for 1st player to do tx
   , gToken          :: !Value.AssetClass              -- nft to track correct utxo
-  } deriving (P.Show, P.Eq, P.Ord)
+  } deriving (P.Show, P.Eq, P.Ord,
+              GHCGenerics.Generic,
+              DataAeson.FromJSON,
+              DataAeson.ToJSON,
+              DataOpenApiSchema.ToSchema)
 
 PlutusTx.makeLift ''Game
 
@@ -49,7 +60,11 @@ PlutusTx.makeLift ''Game
 -- Datum types
 
 data GameChoice = Zero | One
-  deriving (P.Show, P.Eq, P.Ord)
+  deriving (P.Show, P.Eq, P.Ord,
+           GHCGenerics.Generic,
+           DataAeson.FromJSON,
+           DataAeson.ToJSON,
+           DataOpenApiSchema.ToSchema)
 
 instance Eq GameChoice where
   {-# INLINEABLE (==) #-}
@@ -141,7 +156,9 @@ mkGameValidator game bsZero' bsOne' dat red ctx =
       traceIfFalse "token missing from output"
         (Value.assetClassValueOf (Contexts.txOutValue ownOutput) (gToken game) == 1)
 
-    -- Player 1 reveals their choice 
+    -- Player 1 reveals their choice
+    -- TODO: Don't assume 'c' is same as player 1 choice.
+    --       Have player 1 re-sent their choice and use that in hash.
     (GameDatum bs (Just c), Reveal nonce) ->
       traceIfFalse "not signed by first player"
         (Contexts.txSignedBy info (LAddressV1.unPaymentPubKeyHash $ gFirst game)) &&
@@ -201,8 +218,8 @@ mkGameValidator game bsZero' bsOne' dat red ctx =
     -- Check if hash(nonce||choice) matches first hash
     checkNonce
         :: LedgerApiV2.BuiltinByteString   -- hash stored in datum 
-        -> LedgerApiV2.BuiltinByteString   -- nonce sent by player 1 for reveal
-        -> GameChoice                      -- choice sent by player 1 for reveal
+        -> LedgerApiV2.BuiltinByteString   -- nonce submitted by player 1 for reveal
+        -> GameChoice                      -- choice submitted by player 1 for reveal
         -> Bool                            -- True if hash(nonce||choice) == bs
     checkNonce bs nonce cSecond =
         sha2_256 (nonce `appendByteString` cFirst) == bs
@@ -217,8 +234,7 @@ mkGameValidator game bsZero' bsOne' dat red ctx =
     nftToFirst :: Bool
     nftToFirst = Value.assetClassValueOf (Contexts.valuePaidTo info ppkh)
                    (gToken game) == 1
-      where
-        ppkh = LAddressV1.unPaymentPubKeyHash $ gFirst game
+      where ppkh = LAddressV1.unPaymentPubKeyHash $ gFirst game
 
 
 -- ----------------------------------------------------------------------
@@ -228,7 +244,7 @@ data Gaming
 instance UtilsTypeScriptsV2.ValidatorTypes Gaming where
   type instance DatumType Gaming    = GameDatum
   type instance RedeemerType Gaming = GameRedeemer
-  
+
 bsZero, bsOne :: LedgerApiV2.BuiltinByteString
 bsZero = "0"
 bsOne  = "1"
@@ -243,14 +259,11 @@ typedGameValidator game = UtilsTypeScriptsV2.mkTypedValidator @Gaming
   where
     wrap = UtilsTypeScriptsV2.mkUntypedValidator @GameDatum @GameRedeemer
      
-
 gameValidator :: Game -> LedgerApiV2.Validator
 gameValidator = UtilsTypeScriptsV2.validatorScript . typedGameValidator
 
-
 validatorHash :: Game -> LedgerApiV2.ValidatorHash
 validatorHash = UtilsTypeScriptsV2.validatorHash . typedGameValidator
-
 
 gameAddress :: Game -> LAddressV1.Address
 gameAddress = LAddressV1.scriptHashAddress . validatorHash
