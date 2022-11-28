@@ -93,6 +93,8 @@ library
         Week06.Emulator,
         Week06.Utils,
 
+        Week07.EvenOdd,
+
         -- other examples
         TwoBeneficiaries.OnChain,
         TwoBeneficiaries.OffChain,

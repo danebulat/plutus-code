@@ -63,6 +63,7 @@ data TokenParams = TokenParams
 
 -- ----------------------------------------------------------------------
 -- Helper function to handle min-ada value (balancing) and submit tx
+-- Alternatively, min-ada can be added by hand.
 
 adjustAndSubmitWith
     :: ( PlutusTx.FromData (Scripts.DatumType a)
