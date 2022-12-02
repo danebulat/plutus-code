@@ -6,11 +6,9 @@
 module Simple.OnChain where 
 
 import PlutusTx
-import PlutusTx.Prelude
 import qualified Ledger
 import qualified Plutus.V2.Ledger.Api           as Scripts
 import qualified Plutus.Script.Utils.V2.Scripts as V2UtilsScripts
-import Ledger (mkValidatorScript)
 
 
 -- ----------------------------------------------------------------------

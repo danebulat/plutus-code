@@ -42,12 +42,12 @@ import qualified Ledger
 -- Validator parameter 
 
 data Game = Game
-  { gFirst          :: !LAddressV1.PaymentPubKeyHash  -- first player 
-  , gSecond         :: !LAddressV1.PaymentPubKeyHash  -- second player
-  , gStake          :: !Integer                       -- lovelace to be paid by both players
-  , gPlayDeadline   :: !LedgerApiV2.POSIXTime         -- deadline for 2nd player to do tx
-  , gRevealDeadline :: !LedgerApiV2.POSIXTime         -- deadline for 1st player to do tx
-  , gToken          :: !Value.AssetClass              -- nft to track correct utxo
+  { gFirst          :: LAddressV1.PaymentPubKeyHash  -- first player 
+  , gSecond         :: LAddressV1.PaymentPubKeyHash  -- second player
+  , gStake          :: Integer                       -- lovelace to be paid by both players
+  , gPlayDeadline   :: LedgerApiV2.POSIXTime         -- deadline for 2nd player to do tx
+  , gRevealDeadline :: LedgerApiV2.POSIXTime         -- deadline for 1st player to do tx
+  , gToken          :: Value.AssetClass              -- nft to track correct utxo
   } deriving (P.Show, P.Eq, P.Ord,
               GHCGenerics.Generic,
               DataAeson.FromJSON,
@@ -55,6 +55,7 @@ data Game = Game
               DataOpenApiSchema.ToSchema)
 
 PlutusTx.makeLift ''Game
+
 
 -- ----------------------------------------------------------------------
 -- Datum types
@@ -158,7 +159,7 @@ mkGameValidator game bsZero' bsOne' dat red ctx =
 
     -- Player 1 reveals their choice
     -- TODO: Don't assume 'c' is same as player 1 choice.
-    --       Have player 1 re-sent their choice and use that in hash.
+    --       Have player 1 re-send their choice and use that in hash.
     (GameDatum bs (Just c), Reveal nonce) ->
       traceIfFalse "not signed by first player"
         (Contexts.txSignedBy info (LAddressV1.unPaymentPubKeyHash $ gFirst game)) &&
@@ -205,7 +206,8 @@ mkGameValidator game bsZero' bsOne' dat red ctx =
       Nothing -> traceError "game input missing"
       Just i  -> Contexts.txInInfoResolved i
 
-    -- Get the one unspent utxo from the script address we're spending from
+    -- Get all the outputs that pay to the same script address we are currently
+    -- spending from, if any.
     ownOutput :: LedgerApiV2.TxOut
     ownOutput = case Contexts.getContinuingOutputs ctx of
       [o] -> o
@@ -242,7 +244,7 @@ mkGameValidator game bsZero' bsOne' dat red ctx =
 
 data Gaming
 instance UtilsTypeScriptsV2.ValidatorTypes Gaming where
-  type instance DatumType Gaming    = GameDatum
+  type instance DatumType    Gaming = GameDatum
   type instance RedeemerType Gaming = GameRedeemer
 
 bsZero, bsOne :: LedgerApiV2.BuiltinByteString

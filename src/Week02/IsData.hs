@@ -30,6 +30,7 @@ import           Playground.Types     (KnownCurrency(..))
 import           Prelude              (IO, Semigroup(..), String, show)
 import           Text.Printf          (printf)
 import           Ledger.Address       (scriptValidatorHashAddress)
+import           Plutus.Script.Utils.V2.Scripts as V2Scripts
 
 -- ----------------------------------------------------------------------
 -- Data types
@@ -63,7 +64,7 @@ validator :: Validator
 validator = Scripts.validatorScript typedValidator
 
 valHash :: Ledger.ValidatorHash
-valHash = Scripts.validatorHash typedValidator
+valHash = V2Scripts.validatorHash validator
 
 srcAddress :: Ledger.Address
 srcAddress = scriptHashAddress valHash
@@ -78,7 +79,7 @@ type GiftSchema = Endpoint "give" Integer
 -- give endpoint
 give :: forall w s e. AsContractError e => Integer -> Contract w s e ()
 give amount = do
-  let tx = mustPayToTheScript () $ Ada.lovelaceValueOf amount
+  let tx = mustPayToTheScriptWithDatumHash () $ Ada.lovelaceValueOf amount
   ledgerTx <- submitTxConstraints typedValidator tx
   void $ awaitTxConfirmed (getCardanoTxId ledgerTx)
   logInfo @String $ printf "made gift of $d lovelace" amount
@@ -90,7 +91,7 @@ grab r = do
   utxos <- utxosAt srcAddress
   let orefs = fst <$> Map.toList utxos
       lookups = Constraints.unspentOutputs utxos
-             <> Constraints.plutusV1OtherScript validator
+             <> Constraints.plutusV2OtherScript validator
       tx :: TxConstraints Void Void
       tx = mconcat [ mustSpendScriptOutput oref
              (Redeemer $ PlutusTx.toBuiltinData (MySillyRedeemer r))

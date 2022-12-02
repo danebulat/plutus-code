@@ -60,6 +60,7 @@ valHash = Scripts.validatorHash typedValidator
 srcAddress :: Ledger.Address
 srcAddress = scriptHashAddress valHash
 
+
 -- ----------------------------------------------------------------------
 -- Off-chain
 
@@ -70,7 +71,7 @@ type GiftSchema = Endpoint "give" Integer
 -- give endpoint
 give :: forall w s e. AsContractError e => Integer -> Contract w s e ()
 give amount = do
-  let tx = mustPayToTheScript () $ Ada.lovelaceValueOf amount
+  let tx = mustPayToTheScriptWithDatumHash () $ Ada.lovelaceValueOf amount
   ledgerTx <- submitTxConstraints typedValidator tx
   void $ awaitTxConfirmed (getCardanoTxId ledgerTx)
   logInfo @String $ printf "made gift of $d lovelace" amount
@@ -83,10 +84,12 @@ grab bs = do
   let orefs = fst <$> Map.toList utxos
       lookups = Constraints.unspentOutputs utxos
              <> Constraints.plutusV1OtherScript validator
+
       tx :: TxConstraints Void Void
       tx = mconcat [ mustSpendScriptOutput oref
              (Redeemer $ PlutusTx.toBuiltinData bs)
              | oref <- orefs ]
+           
   ledgerTx <- submitTxConstraintsWith @Void lookups tx
   void $ awaitTxConfirmed (getCardanoTxId ledgerTx)
   logInfo @String $ "collected gifts"

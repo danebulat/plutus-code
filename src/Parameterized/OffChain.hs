@@ -33,7 +33,7 @@ import qualified Plutus.Contract          as PlutusContract
 import qualified Ledger.Ada               as Ada
 import qualified Ledger.Tx                as LedgerTx
 import qualified Plutus.V2.Ledger.Api     as LedgerApiV2
-import qualified Ledger                   (PaymentPubKeyHash, Value, getCardanoTxId)
+import qualified Ledger
 import qualified Ledger.Constraints       as Constraints
 import qualified Plutus.V1.Ledger.Scripts as ScriptsLedger
 
@@ -95,8 +95,10 @@ start sp = do
              OnChain.dData = spGuess sp
            }
     val  = Ada.lovelaceValueOf $ spAmount sp
-    tx   = Constraints.mustPayToOtherScript (OnChain.validatorHash p)
-           (LedgerApiV2.Datum $ PlutusTx.toBuiltinData dat) val
+    tx   = Constraints.mustPayToOtherScriptWithInlineDatum
+             (OnChain.validatorHash p)
+             (LedgerApiV2.Datum $ PlutusTx.toBuiltinData dat) val
+             
     lookups = Constraints.plutusV2OtherScript $ OnChain.validator p
 
 
@@ -106,7 +108,7 @@ start sp = do
 grab :: GrabParams -> PlutusContract.Contract w s Text ()
 grab GrabParams{..} = do
   beneficiary <- PlutusContract.ownFirstPaymentPubKeyHash
-  now         <- PlutusContract.currentTime
+  now         <- fst <$> PlutusContract.currentNodeClientTimeRange
 
   if now < gpDeadline
     then PlutusContract.logInfo @P.String $
@@ -135,12 +137,14 @@ grab GrabParams{..} = do
             printf "Redeem utxo %s - with timing now at %s:" (P.show oref) (P.show now)
 
           -- UTXO found (param matches)
-          let lookups  = Constraints.unspentOutputs (Map.singleton oref o)     P.<>
+          let lookups  = Constraints.unspentOutputs (Map.singleton oref o)          P.<>
                          Constraints.plutusV2OtherScript (OnChain.validator param)
-              tx       = Constraints.mustSpendScriptOutput oref
-                           (ScriptsLedger.Redeemer $ PlutusTx.toBuiltinData r) P.<>
-                         Constraints.mustValidateIn (LedgerApiV2.from now)     P.<>
-                         Constraints.mustPayToPubKey gpCreator (getTotalValuePay o)
+
+              tx       = Constraints.mustSpendScriptOutput oref                     
+                           (ScriptsLedger.Redeemer $ PlutusTx.toBuiltinData r)      P.<>
+                         Constraints.mustValidateIn (LedgerApiV2.from now)          P.<>
+                         Constraints.mustPayToPubKey gpCreator (getTotalValuePay o) P.<>
+                         Constraints.mustBeSignedBy beneficiary
           
           submittedTx <- PlutusContract.submitTxConstraintsWith @OnChain.Simple lookups tx
           Monad.void $ PlutusContract.awaitTxConfirmed $ LedgerTx.getCardanoTxId submittedTx
@@ -150,26 +154,25 @@ grab GrabParams{..} = do
 -- ----------------------------------------------------------------------
 -- Contract monad functions
 
+type TxOutTup = (Ledger.TxOutRef, Ledger.DecoratedTxOut)
+
 -- || getDatum
 -- Return the datum of a passed in transaction output
-getDatum
-    :: (LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)
-    -> Maybe OnChain.Dat
+
+getDatum :: TxOutTup -> Maybe OnChain.Dat
 getDatum (_, o) = do
-  let datHashOrDatum = LedgerTx._ciTxOutScriptDatum o
-  LedgerApiV2.Datum e <- snd datHashOrDatum
-  case (LedgerApiV2.fromBuiltinData e :: Maybe OnChain.Dat) of
-    Nothing -> Nothing
-    datum   -> datum
+    let scriptDat = Ledger._decoratedTxOutScriptDatum o
+    case snd scriptDat of
+      Ledger.DatumUnknown  -> Nothing
+      Ledger.DatumInline d -> PlutusTx.fromBuiltinData (Ledger.getDatum d)
+      Ledger.DatumInBody d -> PlutusTx.fromBuiltinData (Ledger.getDatum d)
 
 
 -- || checkUTXO
 -- Check a UTXO's datum against our validation criteria (datum matches)
-checkUTXO
-    :: (LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)
-    -> Integer
-    -> Bool
-checkUTXO (oref, o) n = do
+
+checkUTXO :: TxOutTup -> Integer -> Bool
+checkUTXO (oref, o) n =
   case getDatum (oref, o) of
     Nothing -> False
     Just OnChain.Dat{..}
@@ -179,25 +182,24 @@ checkUTXO (oref, o) n = do
 
 -- || findUTXO
 -- Return a UTXO that satisfies our validation criteria (datum matches)
-findUTXO
-    :: [(LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)]
-    -> Integer
-    -> Maybe (LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)
+findUTXO :: [TxOutTup] -> Integer -> Maybe TxOutTup
 findUTXO [] _ = Nothing
-findUTXO ((oref, o) : xs) n
-  | checkUTXO (oref, o) n = return (oref, o)
-  | otherwise = findUTXO xs n
+findUTXO [(oref, o)] n = do
+    if checkUTXO (oref, o) n
+      then return (oref, o)
+      else Nothing
+findUTXO ((oref, o):xs) n
+    | checkUTXO (oref, o) n = return (oref, o)
+    | otherwise             = findUTXO xs n
 
 
 -- || findUtxoInValidator
 -- Return a UTXO at validator address that satisfies our validation criteria
-findUtxoInValidator
-    :: OnChain.BenParam
-    -> Integer
-    -> PlutusContract.Contract w s Text (Maybe (LedgerApiV2.TxOutRef,
-                                                LedgerTx.ChainIndexTxOut))
-findUtxoInValidator gparam n = do
-  utxos <- PlutusContract.utxosAt (OnChain.address gparam)
+findUtxoInValidator :: OnChain.BenParam -> Integer -> PlutusContract.Contract w s Text (Maybe TxOutTup)
+findUtxoInValidator bp n = do
+  utxos <- PlutusContract.utxosAt (OnChain.address bp)
+  PlutusContract.logInfo @P.String $ printf "utxos found: %d" (P.length utxos)
+
   let xs  = [(oref, o) | (oref, o) <- Map.toList utxos]
       out = findUTXO xs n
   return out
@@ -205,9 +207,9 @@ findUtxoInValidator gparam n = do
 
 -- || getTotalValuePay
 -- Divide total ADA in the UTXO by 10 (calculate royalties)
-getTotalValuePay :: LedgerTx.ChainIndexTxOut -> Ledger.Value
+getTotalValuePay :: Ledger.DecoratedTxOut -> Ledger.Value
 getTotalValuePay o =
-  Ada.toValue $ Ada.fromValue (LedgerTx._ciTxOutValue o) `Ada.divide` 10
+  Ada.toValue $ Ada.fromValue (Ledger._decoratedTxOutValue o) `Ada.divide` 10
 
 
 -- ----------------------------------------------------------------------

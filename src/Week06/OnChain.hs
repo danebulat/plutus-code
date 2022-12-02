@@ -40,7 +40,7 @@ mkTokenPolicy
     -> LedgerApiV2.TokenName    -- token name to mint
     -> Integer                  -- amount of token to mint
     -> ()                       -- (redeemer) unit
-    -> Contexts.ScriptContext   -- script context 
+    -> Contexts.ScriptContext   -- script context
     -> Bool
 mkTokenPolicy oref tn amt () ctx =
     traceIfFalse "expected UTXO not in tx" hasUtxo &&

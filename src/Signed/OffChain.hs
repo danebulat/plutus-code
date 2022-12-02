@@ -46,7 +46,6 @@ import qualified Signed.OnChain            as OnChain
 -- ----------------------------------------------------------------------
 -- Data types 
 
-
 data MintParams = MintParams
   { mpTokenName :: !LedgerApiV2.TokenName
   , mpAmount    :: !Integer
@@ -73,7 +72,8 @@ mint mp = do
 
   let val     = Value.singleton (OnChain.curSymbol pkh) (mpTokenName mp) (mpAmount mp)
       lookups = Constraints.plutusV2MintingPolicy (OnChain.policy pkh)
-      tx      = Constraints.mustMintValueWithRedeemer Ledger.unitRedeemer val
+      tx      = Constraints.mustMintValueWithRedeemer Ledger.unitRedeemer val P.<>
+                Constraints.mustBeSignedBy pkh
 
   ledgerTx <- PlutusContract.submitTxConstraintsWith @Void lookups tx
   void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)

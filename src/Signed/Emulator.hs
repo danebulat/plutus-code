@@ -1,6 +1,5 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE OverloadedStrings   #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}

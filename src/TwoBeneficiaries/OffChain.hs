@@ -9,14 +9,12 @@
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DerivingStrategies  #-}
-{-# LANGUAGE RecordWildCards     #-} -- To allow notation like GrabParams {..}
 {-# LANGUAGE NumericUnderscores  #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 module TwoBeneficiaries.OffChain where
-
 
 import qualified Control.Monad             as Monad (void, unless)
 import qualified GHC.Generics              as GHCGenerics (Generic)
@@ -35,12 +33,13 @@ import qualified Plutus.Contract           as PlutusContract
 import qualified Ledger.Ada                as Ada
 import qualified Ledger.Tx                 as LedgerTx
 import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
-import qualified Ledger                    (PaymentPubKeyHash, getCardanoTxId, unitRedeemer)
+import qualified Ledger
 import qualified Ledger.Constraints        as Constraints
 import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Interval as LedgerIntervalV1
 
 import qualified TwoBeneficiaries.OnChain  as OnChain
+import Playground.Contract (ownFirstPaymentPubKeyHash)
 
 
 -- ----------------------------------------------------------------------
@@ -76,8 +75,8 @@ give gp = do
                   }
         
         lookups = Constraints.plutusV2OtherScript OnChain.validator
-        tx      = Constraints.mustPayToOtherScript
-                    (OnChain.validatorHash)
+        tx      = Constraints.mustPayToOtherScriptWithInlineDatum
+                    OnChain.validatorHash
                     (LedgerApiV2.Datum   $ PlutusTx.toBuiltinData dat)
                     (Ada.lovelaceValueOf $ gpAmount gp)
     
@@ -92,7 +91,7 @@ grab :: forall w s e. PlutusContract.AsContractError e
      => PlutusContract.Contract w s e ()
 grab = do
     PlutusContract.logInfo @P.String $ printf ">>> Starting grab..."
-    now   <- PlutusContract.currentTime
+    now   <- fst <$> PlutusContract.currentNodeClientTimeRange
     pkh   <- PlutusContract.ownFirstPaymentPubKeyHash
     utxos <- PlutusContract.utxosAt OnChain.address
 
@@ -104,43 +103,46 @@ grab = do
         utxos2 = Map.filter (isSuitable $ \dat ->
                    OnChain.beneficiary2 dat == pkh && now > OnChain.deadline dat) utxos
 
-    PlutusContract.logInfo @P.String $ printf ">>> UTXO length 1: %d" (P.length utxos1)
-    PlutusContract.logInfo @P.String $ printf ">>> UTXO length 2: %d" (P.length utxos2)
+    PlutusContract.logInfo @P.String $ printf ">>> UTXOs1 length: %d" (P.length utxos1)
+    PlutusContract.logInfo @P.String $ printf ">>> UTXOs2 length: %d" (P.length utxos2)
 
     Monad.unless (Map.null utxos1) $ spendUtxos utxos1 now BeforeDeadline
     Monad.unless (Map.null utxos2) $ spendUtxos utxos2 now AfterDeadline
   where
-    isSuitable :: (OnChain.Dat -> Bool) -> LedgerTx.ChainIndexTxOut -> Bool
-    isSuitable p o = let (_, mDat) = LedgerTx._ciTxOutScriptDatum o in
-      case mDat of
-        Nothing  -> False
-        Just dat -> let maybeDat = PlutusTx.fromBuiltinData (LedgerApiV2.getDatum dat)
-                    in maybe False p maybeDat
-                        
+    isSuitable :: (OnChain.Dat -> Bool) -> Ledger.DecoratedTxOut -> Bool
+    isSuitable p o = let (_, datumFromQuery) = Ledger._decoratedTxOutScriptDatum o in
+      case datumFromQuery of
+        Ledger.DatumUnknown  -> False
+        Ledger.DatumInline d -> maybe False p (PlutusTx.fromBuiltinData $ Ledger.getDatum d)
+        Ledger.DatumInBody d -> maybe False p (PlutusTx.fromBuiltinData $ Ledger.getDatum d)
 
 
 -- ----------------------------------------------------------------------
 -- Spend the suitable UTXOs
 
 spendUtxos :: forall w s e. PlutusContract.AsContractError e
-           => Map.Map LedgerTx.TxOutRef LedgerTx.ChainIndexTxOut
+           => Map.Map Ledger.TxOutRef Ledger.DecoratedTxOut
            -> LedgerApiV2.POSIXTime
            -> DeadlineFlag
            -> PlutusContract.Contract w s e ()
 spendUtxos utxos now f = do
   PlutusContract.logInfo @P.String $ printf ">>> Starting spend..."
+  pkh <- ownFirstPaymentPubKeyHash
+  
   let orefs     = fst <$> Map.toList utxos
-      interval' = --LedgerIntervalV1.interval now (now + 10_000) -- 10 second tx interval
-        if f P.== BeforeDeadline
-                    then LedgerIntervalV1.to now
+      interval' = if f P.== BeforeDeadline
+                    then LedgerIntervalV1.to (now + 10_000) -- add some time so tx has time to process
                     else LedgerIntervalV1.from now
-      lookups   = Constraints.unspentOutputs utxos P.<>
+
+      lookups   = Constraints.unspentOutputs utxos      P.<>
                   Constraints.plutusV2OtherScript OnChain.validator
 
       tx :: Constraints.TxConstraints () OnChain.Dat
       tx = mconcat [Constraints.mustSpendScriptOutput oref Ledger.unitRedeemer
-                   | oref <- orefs] P.<>
-                   Constraints.mustValidateIn interval'
+                   | oref <- orefs]             P.<>
+           Constraints.mustValidateIn interval' P.<>
+           Constraints.mustBeSignedBy pkh
+  
   Monad.void $ PlutusContract.submitTxConstraintsWith @OnChain.VTypes lookups tx
 
 

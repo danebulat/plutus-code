@@ -51,4 +51,5 @@ main = do
   -- :i ToData
   -- :i FromData
   print $ toData (MySillyRedeemer 42)         -- Constr 0 [I 42]
-  print $ (fromData (I 42) :: Maybe Integer)  -- Just 42
+  print (fromData (I 42) :: Maybe Integer)  -- Just 42
+

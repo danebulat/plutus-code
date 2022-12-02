@@ -22,8 +22,7 @@ import qualified Plutus.Script.Utils.V2.Typed.Scripts.Validators as V2UtilsTypeS
 import qualified Prelude                                         as P
 import qualified Plutus.V1.Ledger.Interval                       as LedgerIntervalV1
 import qualified Ledger.Ada                                      as Ada
-import qualified Ledger (PaymentPubKeyHash, unPaymentPubKeyHash)
-
+import qualified Ledger
 
 -- -------------------------------------------------------------------------------
 -- Data types
@@ -88,7 +87,7 @@ simpleType benp d r context =
     adaRoyalties = do
       validatedValue <- Contexts.txOutValue .    -- get value of tx that will be spent
                   Contexts.txInInfoResolved <$>  -- get output to spend (TxOut)
-                  Contexts.findOwnInput context  -- get input of pending tx (Maybe TxInInfo)
+                  Contexts.findOwnInput context  -- get script input being validated (Maybe TxInInfo)
       Just $ Ada.fromValue validatedValue `Ada.divide` 10
 
     -- Get value paid to creator's pkh in the transaction
@@ -120,32 +119,5 @@ validator = V2UtilsTypeScripts.validatorScript . simpleTypeV
 validatorHash :: BenParam -> V2LedgerApi.ValidatorHash
 validatorHash = V2UtilsTypeScripts.validatorHash . simpleTypeV
 
-address :: BenParam -> V1LAddress.Address
+address :: BenParam -> Ledger.Address
 address = V1LAddress.scriptHashAddress . validatorHash
-
-
--- --------------------------------------------------------------------------------
--- Validator script functions
-
--- Check if creator is receiving minimum 10% of the tx value
--- {-# INLINEABLE validateRoyalties #-}
--- validateRoyalties :: Dat -> Contexts.TxInfo -> Bool
--- validateRoyalties d txInfo = compareValues (qCreator d txInfo) (totalValue txInfo)
--- 
--- Get total amount ADA from the transaction
--- {-# INLINEABLE totalValue #-}
--- totalValue :: Contexts.TxInfo -> Ada.Ada
--- totalValue txInfo = Ada.fromValue $ Contexts.valueSpent txInfo
--- 
--- -- Get value paid to the creator of the contract (10%)
--- {-# INLINEABLE qCreator #-}
--- qCreator :: Dat -> Contexts.TxInfo -> Ada.Ada
--- qCreator d txInfo = Ada.fromValue
---     -- Get creator's pkh and check how much ADA is sent to him/her in the tx
---     $ Contexts.valuePaidTo txInfo (Ledger.unPaymentPubKeyHash (creator d))
--- 
--- -- Return True if creator is receiving >= 10% of the total tx value
--- {-# INLINEABLE compareValues #-}
--- compareValues :: Ada.Ada -> Ada.Ada -> Bool
--- compareValues a a' = a' >= a `Ada.divide` 10
-

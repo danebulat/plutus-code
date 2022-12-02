@@ -6,18 +6,17 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module NFT01.Emulator where
+module NFT.Emulator where
 
 import qualified Plutus.Trace.Emulator  as Emulator
 import Data.Default                     (Default (..))
 import Control.Monad.Freer.Extras       as Extras
 import Data.Functor                     (void)
-import Plutus.Trace                     
+import Plutus.Trace ( activateContractWallet, callEndpoint )                     
 import Wallet.Emulator.Wallet           (knownWallet, mockWalletPaymentPubKeyHash)
 import qualified Wallet.Emulator.Wallet as Wallet
 import qualified Ledger.TimeSlot        as TimeSlot
-import qualified NFT01.OffChain         as OffChain
-
+import qualified NFT.OffChain           as OffChain
 
 test :: IO ()
 test = Emulator.runEmulatorTraceIO trace1
@@ -44,4 +43,3 @@ trace1 = do
     , OffChain.npAddress = Wallet.mockWalletAddress w2
     }
   void $ Emulator.waitNSlots 2
-

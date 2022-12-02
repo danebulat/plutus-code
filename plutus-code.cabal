@@ -42,40 +42,38 @@ library
     import: lang
 
     exposed-modules:
-        Utils,
-
-        -- basic reference
-        Basics.ContractMonad,
-        Basics.DataModule,
-        Basics.HandlingTime,
-        Basics.HandlingValue,
-        Basics.MyModule,
-
-        -- compile scripts 
         Helper.Compiler,
         Helper.Deploy,
-
-        -- contract examples
-        Week02.Gift,
-        Week02.Burn,
-        Week02.FortyTwo,
-        Week02.IsData,
+    
+        Simple.OnChain,
 
         Beneficiary.OnChain,
         Beneficiary.OffChain,
         Beneficiary.Emulator,
 
-        Parameterized.OnChain,
-        Parameterized.OffChain,
-        Parameterized.Emulator,
-
         Guess.OnChain,
         Guess.OffChain,
         Guess.Emulator,
 
-        CrowdFunding.OnChain,
+        Vesting.OnChain,
+        Vesting.OffChain,
+        Vesting.Emulator,
 
-        -- policy scripts, native assets
+        Parameterized.OnChain,
+        Parameterized.OffChain,
+        Parameterized.Emulator,
+
+        TwoBeneficiaries.OnChain,
+        TwoBeneficiaries.OffChain,
+        TwoBeneficiaries.Emulator,
+
+        CrowdFunding.OnChain,
+      
+        -- Minting Native Assets
+        NFT.OnChain,
+        NFT.OffChain,
+        NFT.Emulator,
+
         Free.OnChain,
         Free.OffChain,
         Free.Emulator,
@@ -84,9 +82,13 @@ library
         Signed.OffChain,
         Signed.Emulator,
 
-        NFT01.OnChain,
-        NFT01.OffChain,
-        NFT01.Emulator,
+        -- Plutus Pioneer Program
+        Week02.Burn,
+        Week02.FortyTwo,
+        Week02.Gift,
+        Week02.Homework1,
+        Week02.Homework2,
+        Week02.IsData,
 
         Week06.OnChain,
         Week06.OffChain,
@@ -95,22 +97,21 @@ library
 
         Week07.EvenOdd,
         Week07.OffChain,
+        Week07.Emulator,
 
-        -- other examples
-        TwoBeneficiaries.OnChain,
-        TwoBeneficiaries.OffChain,
-        TwoBeneficiaries.Emulator,
-
-        Vesting.OnChain,
-        Vesting.OffChain,
-        Vesting.Emulator,
-
-        Simple.OnChain
+        -- Basics
+        Basics.ContractMonad,
+        Basics.DataModule,
+        Basics.HandlingTime,
+        Basics.HandlingValue,
+        Basics.MyModule,
+        Utils
 
     -- Plutus dependencies
     build-depends:
       playground-common -any,
       plutus-contract -any,
+      plutus-chain-index-core -any,
       plutus-ledger -any,
       plutus-ledger-api -any,
       plutus-ledger-constraints -any,

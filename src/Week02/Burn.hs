@@ -12,26 +12,27 @@
 
 module Week02.Burn where
 
-import           Control.Monad       hiding (fmap)
-import           Data.Map            as Map
-import           Data.Text           (Text)
-import           Data.Void           (Void)
-import           Plutus.Contract
-import           PlutusTx
-import qualified PlutusTx
-import qualified PlutusTx.Builtins   as Builtins
-import           PlutusTx.Prelude    hiding (Semigroup(..), unless)
-import           Ledger              hiding (singleton)
-import           Ledger.Constraints  as Constraints
-import qualified Ledger.Scripts      as Scripts
-import           Ledger.Ada          as Ada
-import           Playground.Contract (printJson, printSchemas, ensureKnownCurrencies, stage)
-import           Playground.TH       (mkKnownCurrencies, mkSchemaDefinitions)
-import           Playground.Types    (KnownCurrency(..))
-import           Prelude             (IO, Semigroup(..), String, show)
-import           Text.Printf         (printf)
-import           Ledger.Address      (scriptValidatorHashAddress)
-
+import           Control.Monad                  hiding (fmap)
+import           Data.Map                       as Map
+import           Data.Text                      (Text)
+import           Data.Void                      (Void)
+import           Plutus.Contract                
+import           PlutusTx                       
+import qualified PlutusTx                       
+import qualified PlutusTx.Builtins              as Builtins
+import qualified Plutus.Script.Utils.V2.Scripts as V2Scripts
+import           PlutusTx.Prelude               hiding (Semigroup(..), unless)
+import           Ledger                         hiding (singleton)
+import           Ledger.Constraints             as Constraints
+import qualified Ledger.Scripts                 as Scripts
+import           Ledger.Ada                     as Ada
+import           Playground.Contract            (printJson, printSchemas, ensureKnownCurrencies, stage)
+import           Playground.TH                  (mkKnownCurrencies, mkSchemaDefinitions)
+import           Playground.Types               (KnownCurrency(..))
+import           Prelude                        (IO, Semigroup(..), String, show)
+import           Text.Printf                    (printf)
+import           Ledger.Address                 (scriptValidatorHashAddress)
+                                                
 
 
 -- ----------------------------------------------------------------------
@@ -45,7 +46,7 @@ validator :: Validator
 validator = mkValidatorScript $$(PlutusTx.compile [|| mkValidator ||])
 
 valHash :: Ledger.ValidatorHash
-valHash = Scripts.validatorHash validator
+valHash = V2Scripts.validatorHash validator
 
 srcAddress :: Ledger.Address
 srcAddress = scriptHashAddress valHash
@@ -60,7 +61,7 @@ type GiftSchema = Endpoint "give" Integer
 -- give endpoint
 give :: forall w s e. AsContractError e => Integer -> Contract w s e ()
 give amount = do
-  let tx = mustPayToOtherScript
+  let tx = mustPayToOtherScriptWithDatumHash
              valHash                      -- validator hash 
              (Datum $ Builtins.mkI 0) $   -- datum (arbitrary)
              Ada.lovelaceValueOf amount   -- lovelace to send

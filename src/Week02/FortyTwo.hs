@@ -31,6 +31,7 @@ import           Playground.Types    (KnownCurrency(..))
 import           Prelude             (IO, Semigroup(..), String, show)
 import           Text.Printf         (printf)
 import           Ledger.Address      (scriptValidatorHashAddress)
+import qualified Plutus.Script.Utils.V2.Scripts as V2Scripts
 
 
 -- ----------------------------------------------------------------------
@@ -46,7 +47,7 @@ validator :: Validator
 validator = mkValidatorScript $$(PlutusTx.compile [|| mkValidator ||])
 
 valHash :: Ledger.ValidatorHash
-valHash = Scripts.validatorHash validator
+valHash = V2Scripts.validatorHash validator
 
 srcAddress :: Ledger.Address
 srcAddress = scriptHashAddress valHash
@@ -61,7 +62,7 @@ type GiftSchema = Endpoint "give" Integer
 -- give endpoint
 give :: forall w s e. AsContractError e => Integer -> Contract w s e ()
 give amount = do
-  let tx = mustPayToOtherScript
+  let tx = mustPayToOtherScriptWithDatumHash
              valHash                      -- validator hash 
              (Datum $ Builtins.mkI 0) $   -- datum (arbitrary)
              Ada.lovelaceValueOf amount   -- lovelace to send

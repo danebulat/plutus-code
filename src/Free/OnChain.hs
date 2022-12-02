@@ -55,4 +55,3 @@ policyScript = V2LedgerApi.unMintingPolicyScript policy
 
 mintValidator :: V2LedgerApi.Validator
 mintValidator = V2LedgerApi.Validator policyScript
-

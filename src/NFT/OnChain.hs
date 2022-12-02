@@ -1,10 +1,10 @@
 -- Extensions
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
-{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 -- Required to use custom data types
 {-# LANGUAGE TypeFamilies        #-}
@@ -14,7 +14,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module NFT01.OnChain where
+module NFT.OnChain where
 
 import PlutusTx
 import PlutusTx.Prelude
@@ -31,7 +31,6 @@ import qualified Ledger.Ada                                      as Ada
 import qualified Ledger
 --import qualified
 --  Plutus.Script.Utils.V2.Typed.Scripts.MonetaryPolicies as UtilsTypedScriptsMintingV2
-
 
 -- ----------------------------------------------------------------------
 -- On-chain
@@ -70,7 +69,7 @@ mkPolicy oref tn () ctx = traceIfFalse "UTxO not consumd" hasUtxo &&
 policy :: V2LedgerApi.TxOutRef -> V2LedgerApi.TokenName -> V2LedgerApi.MintingPolicy
 policy oref tn = V2LedgerApi.mkMintingPolicyScript $
     $$(PlutusTx.compile
-       [|| \oref' tn' -> Scripts.mkUntypedMintingPolicy $ mkPolicy oref' tn' ||]
+       [|| \oref' tn' -> Scripts.mkUntypedMintingPolicy (mkPolicy oref' tn') ||]
       )
     `PlutusTx.applyCode` PlutusTx.liftCode oref
     `PlutusTx.applyCode` PlutusTx.liftCode tn

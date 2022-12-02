@@ -83,4 +83,4 @@ endpoints :: PlutusContract.Contract () FreeSchema T.Text ()
 endpoints = mint' >> endpoints
   where
     mint' = PlutusContract.awaitPromise $
-              PlutusContract.endpoint @"mint" mint
+            PlutusContract.endpoint @"mint" mint

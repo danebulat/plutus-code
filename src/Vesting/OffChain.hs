@@ -10,7 +10,6 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE NumericUnderscores  #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
@@ -29,12 +28,13 @@ import qualified Data.Text                 as T
 import Text.Printf                         (printf)
                                            
 import qualified PlutusTx                  
-import PlutusTx.Prelude                    
+import PlutusTx.Prelude
+import qualified Plutus.ChainIndex.Tx      as ChainIndexTx
 import qualified Plutus.Contract           as PlutusContract
 import qualified Ledger.Ada                as Ada
 import qualified Ledger.Tx                 as LedgerTx
 import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
-import qualified Ledger                    (PaymentPubKeyHash, getCardanoTxId, unitRedeemer)
+import qualified Ledger
 import qualified Ledger.Constraints        as Constraints
 import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Interval as LedgerIntervalV1
@@ -68,12 +68,13 @@ give GiveParams{..} = do
               OnChain.deadline    = gpDeadline
             }
       lookups = Constraints.plutusV2OtherScript OnChain.validator
-      tx = Constraints.mustPayToOtherScript OnChain.validatorHash
+
+      tx = Constraints.mustPayToOtherScriptWithInlineDatum
+             OnChain.validatorHash
              (LedgerApiV2.Datum $ PlutusTx.toBuiltinData dat)
              (Ada.lovelaceValueOf gpAmount)
 
-  submittedTx <- PlutusContract.submitTxConstraintsWith @OnChain.VTypes
-                   lookups tx
+  submittedTx <- PlutusContract.submitTxConstraintsWith @OnChain.VTypes lookups tx
   Monad.void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId submittedTx)
 
 
@@ -85,23 +86,28 @@ grab
     => PlutusContract.Contract w s e ()
 grab = do
   pkh   <- PlutusContract.ownFirstPaymentPubKeyHash
-  now   <- PlutusContract.currentTime
+  now   <- fst <$> PlutusContract.currentNodeClientTimeRange
   utxos <- PlutusContract.utxosAt OnChain.address
 
-  let validUtxos = Map.filter (isSuitable $ utxoPred pkh now) utxos
+  let validUtxos    = Map.filter (isSuitable $ utxoPred pkh now) utxos
       utxosNotFound = Map.null validUtxos
 
+  PlutusContract.logInfo @P.String $ printf "Found %d UTXOs" (P.length validUtxos)
+  
   Monad.when utxosNotFound $ do
     PlutusContract.logInfo @P.String $ printf "No valid UTXOs found"
 
   Monad.unless utxosNotFound $ do
-    PlutusContract.logInfo @P.String $ printf "Found %d UTXOs" (P.length validUtxos)
+    --PlutusContract.logInfo @P.String $ printf "Found %d UTXOs" (P.length validUtxos)
     let interval' = LedgerIntervalV1.from now
-        lookups = Constraints.unspentOutputs validUtxos P.<>
+
+        lookups = Constraints.unspentOutputs validUtxos        P.<>
                   Constraints.plutusV2OtherScript OnChain.validator
+
         tx = mconcat [Constraints.mustSpendScriptOutput oref Ledger.unitRedeemer
                      | oref <- fst <$> Map.toList validUtxos ] P.<>
-             Constraints.mustValidateIn interval'
+             Constraints.mustValidateIn interval'              P.<>
+             Constraints.mustBeSignedBy pkh
     Monad.void $ PlutusContract.submitTxConstraintsWith @OnChain.VTypes lookups tx
 
 
@@ -110,14 +116,15 @@ grab = do
 
 isSuitable
     :: (OnChain.Dat -> Bool)         -- filter predicate 
-    -> LedgerTx.ChainIndexTxOut      -- utxo
+    -> Ledger.DecoratedTxOut         -- utxo
     -> Bool                          -- valid or invalid
 isSuitable p o =
-  case LedgerTx._ciTxOutScriptDatum o of
-    (_, Nothing)  -> False
-    (_, Just dat) ->
-      let mDat = PlutusTx.fromBuiltinData (LedgerApiV2.getDatum dat)
-      in maybe False p mDat
+  case snd $ Ledger._decoratedTxOutScriptDatum o of
+    Ledger.DatumUnknown   -> False
+    Ledger.DatumInline  d -> checkDatum d
+    Ledger.DatumInBody  d -> checkDatum d
+  where
+    checkDatum d = maybe False p (PlutusTx.fromBuiltinData $ Ledger.getDatum d)
 
 
 utxoPred
@@ -128,7 +135,7 @@ utxoPred
 utxoPred pkh now dat = OnChain.deadline dat    <= now
                     && OnChain.beneficiary dat == pkh
 
-  
+
 -- ----------------------------------------------------------------------
 -- Endpoints 
 

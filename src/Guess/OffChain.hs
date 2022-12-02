@@ -29,10 +29,11 @@ import Text.Printf                         (printf)
 import qualified PlutusTx                  
 import PlutusTx.Prelude                    
 import qualified Plutus.Contract           as PlutusContract
+import qualified Ledger
 import qualified Ledger.Ada                as Ada
 import qualified Ledger.Tx                 as LedgerTx
+import qualified Plutus.ChainIndex.Tx      as ChainIndexTx
 import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
-import qualified Ledger                    (PaymentPubKeyHash, getCardanoTxId, unitRedeemer)
 import qualified Ledger.Constraints        as Constraints
 import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Interval as LedgerIntervalV1
@@ -62,6 +63,7 @@ newtype GrabParams = GrabParams
               DataAeson.FromJSON,
               P.Show)
 
+
 -- ----------------------------------------------------------------------
 -- Schema
 
@@ -90,9 +92,10 @@ give gp = do
 
       lookups = Constraints.plutusV2OtherScript OnChain.validator
 
-      tx = Constraints.mustPayToOtherScript OnChain.validatorHash
-        (ScriptsLedger.Datum $ PlutusTx.toBuiltinData d)
-        (Ada.lovelaceValueOf q)
+      tx = Constraints.mustPayToOtherScriptWithInlineDatum
+             OnChain.validatorHash
+             (ScriptsLedger.Datum $ PlutusTx.toBuiltinData d)
+             (Ada.lovelaceValueOf q)
 
   submittedTx <- PlutusContract.submitTxConstraintsWith @Void lookups tx
   Monad.void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId submittedTx)
@@ -105,16 +108,12 @@ give gp = do
 
 grab :: GrabParams -> PlutusContract.Contract w s Text ()
 grab GrabParams{..} = do
-
   maybeUtxo <- findUtxoInValidator grabRedeem
 
   case maybeUtxo of
-    Nothing -> PlutusContract.logInfo @P.String $ printf
-                 "Wrong guess %d" grabRedeem
+    Nothing -> PlutusContract.logInfo @P.String $ printf "Wrong guess %d" grabRedeem
     Just (oref, o) -> do
-      PlutusContract.logInfo @P.String $ printf
-        "Redeem utxo %s" (P.show oref)
-
+      PlutusContract.logInfo @P.String $ printf "Redeem utxo %s" (P.show oref)
       let r = OnChain.Redeem { OnChain.redeem = grabRedeem }
 
           lookups = Constraints.unspentOutputs (Map.singleton oref o) P.<>
@@ -122,7 +121,7 @@ grab GrabParams{..} = do
 
           tx = Constraints.mustSpendScriptOutput oref
                  (ScriptsLedger.Redeemer $ PlutusTx.toBuiltinData r)
-
+      
       submittedTx <- PlutusContract.submitTxConstraintsWith @OnChain.VTypes lookups tx
       Monad.void $ PlutusContract.awaitTxConfirmed (LedgerTx.getCardanoTxId submittedTx)
       PlutusContract.logInfo @P.String "Collected gifts"
@@ -131,16 +130,15 @@ grab GrabParams{..} = do
 -- ----------------------------------------------------------------------
 -- Helper function
 
-type TxOutTup = (LedgerApiV2.TxOutRef, LedgerTx.ChainIndexTxOut)
-
+type TxOutTup = (Ledger.TxOutRef, Ledger.DecoratedTxOut)
 
 getDatum :: TxOutTup -> Maybe OnChain.Dat
 getDatum (_, o) = do
-    let datHashOrDatum = LedgerTx._ciTxOutScriptDatum o
-    LedgerApiV2.Datum builtInData <- snd datHashOrDatum
-    case (LedgerApiV2.fromBuiltinData builtInData :: Maybe OnChain.Dat) of
-        Nothing -> Nothing
-        dat -> dat
+    let scriptDat = Ledger._decoratedTxOutScriptDatum o
+    case snd scriptDat of
+      Ledger.DatumUnknown  -> Nothing
+      Ledger.DatumInline d -> PlutusTx.fromBuiltinData (Ledger.getDatum d)
+      Ledger.DatumInBody d -> PlutusTx.fromBuiltinData (Ledger.getDatum d)
 
 
 checkUTXO :: TxOutTup -> Integer -> Bool
@@ -160,13 +158,15 @@ findUTXO [(oref, o)] n = do
       else Nothing
 findUTXO ((oref, o):xs) n
     | checkUTXO (oref, o) n = return (oref, o)
-    | otherwise = findUTXO xs n
+    | otherwise             = findUTXO xs n
 
 
 findUtxoInValidator :: Integer -> PlutusContract.Contract w s Text (Maybe TxOutTup)
 findUtxoInValidator n = do
   utxos <- PlutusContract.utxosAt OnChain.address
-  let xs = [(oref, o) | (oref, o) <- Map.toList utxos]
+  PlutusContract.logInfo @P.String $ printf "utxos found: %d" (P.length utxos)
+  
+  let xs  = [(oref, o) | (oref, o) <- Map.toList utxos]
       out = findUTXO xs n
   return out
 

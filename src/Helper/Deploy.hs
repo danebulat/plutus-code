@@ -17,6 +17,7 @@ import qualified PlutusTx
 import qualified Parameterized.OnChain as ParamOnChain
 import qualified Vesting.OnChain       as VestingOnChain
 
+
 -- ----------------------------------------------------------------------
 -- Abstract functions
 

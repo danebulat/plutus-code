@@ -47,9 +47,9 @@ mkPolicy
     -> ()
     -> Contexts.ScriptContext
     -> Bool
-mkPolicy pkh () ctx =
-  Contexts.txSignedBy (Contexts.scriptContextTxInfo ctx)
-                        (Ledger.unPaymentPubKeyHash pkh)
+mkPolicy pkh () ctx = Contexts.txSignedBy
+    (Contexts.scriptContextTxInfo ctx)
+    (Ledger.unPaymentPubKeyHash pkh)
 
 
 -- ----------------------------------------------------------------------

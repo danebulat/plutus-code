@@ -15,8 +15,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module NFT01.OffChain where
-
+module NFT.OffChain where
 
 import  Control.Monad                      (void, unless, when)
 import qualified GHC.Generics              as GHCGenerics (Generic)
@@ -41,7 +40,7 @@ import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Interval as LedgerIntervalV1
 import qualified Plutus.V1.Ledger.Value    as Value
 
-import qualified NFT01.OnChain             as OnChain
+import qualified NFT.OnChain               as OnChain
 
 
 -- ----------------------------------------------------------------------

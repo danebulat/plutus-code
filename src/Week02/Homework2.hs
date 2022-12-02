@@ -8,6 +8,9 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
+
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
 module Week02.Homework2 where
@@ -40,7 +43,7 @@ import           Ledger.Address       (scriptValidatorHashAddress)
 data MyRedeemer = MyRedeemer
   { flag1 :: Bool
   , flag2 :: Bool
-  }
+  } deriving (Generic, ToJSON, FromJSON, ToSchema)
 
 PlutusTx.unstableMakeIsData ''MyRedeemer
 
@@ -76,14 +79,14 @@ srcAddress = scriptHashAddress valHash
 -- ----------------------------------------------------------------------
 -- Off-chain
 
--- type GiftSchema = Endpoint "give" Integer
---               .\/ Endpoint "grab" MyRedeemer
+type GiftSchema = Endpoint "give" Integer
+              .\/ Endpoint "grab" MyRedeemer
 
 
 -- give endpoint
 give :: forall w s e. AsContractError e => Integer -> Contract w s e ()
 give amount = do
-  let tx = mustPayToTheScript () $ Ada.lovelaceValueOf amount
+  let tx = mustPayToTheScriptWithDatumHash () $ Ada.lovelaceValueOf amount
   ledgerTx <- submitTxConstraints typedValidator tx
   void $ awaitTxConfirmed (getCardanoTxId ledgerTx)
   logInfo @String $ printf "made gift of $d lovelace" amount
@@ -94,24 +97,23 @@ grab :: forall w s e. AsContractError e => MyRedeemer -> Contract w s e ()
 grab r = do
   utxos <- utxosAt srcAddress
   let orefs = fst <$> Map.toList utxos
-      lookups = Constraints.unspentOutputs utxos
-             <> Constraints.plutusV1OtherScript validator
+      lookups = Constraints.unspentOutputs utxos <>
+                Constraints.plutusV2OtherScript validator
+             
       tx :: TxConstraints Void Void
       tx = mconcat [ mustSpendScriptOutput oref
              (Redeemer $ PlutusTx.toBuiltinData r)
              | oref <- orefs ]
+           
   ledgerTx <- submitTxConstraintsWith @Void lookups tx
   void $ awaitTxConfirmed (getCardanoTxId ledgerTx)
   logInfo @String $ "collected gifts"
 
 
 -- endpoints
--- endpoints :: Contract () GiftSchema Text ()
--- endpoints = awaitPromise (give' `select` grab') >> endpoints
---   where
---     give' = endpoint @"give" give
---     grab' = endpoint @"grab" grab
+endpoints :: Contract () GiftSchema Text ()
+endpoints = awaitPromise (give' `select` grab') >> endpoints
+  where
+    give' = endpoint @"give" give
+    grab' = endpoint @"grab" grab
 
-
--- mkSchemaDefinitions ''GiftSchema
--- mkKnownCurrencies []

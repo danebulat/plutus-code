@@ -7,14 +7,13 @@
 
 module TwoBeneficiaries.Emulator where 
 
+import Plutus.Trace
 import qualified Plutus.Trace.Emulator     as Emulator
-import Data.Default                        (Default (..))
-import Control.Monad.Freer.Extras          as Extras
-import Data.Functor                        (void)
-import Plutus.Trace                        
-import Wallet.Emulator.Wallet              (knownWallet, mockWalletPaymentPubKeyHash)
 import qualified Ledger.TimeSlot           as TimeSlot
-
+import Control.Monad.Freer.Extras          as Extras
+import Data.Default                        (Default (..))
+import Data.Functor                        (void)
+import Wallet.Emulator.Wallet              (knownWallet, mockWalletPaymentPubKeyHash)
 import qualified TwoBeneficiaries.OffChain as OffChain
 
 
@@ -36,10 +35,7 @@ trace1 = do
     OffChain.gpAmount      = 20_000_000
   }
   
-  void $ waitNSlots 10
-
-  Emulator.callEndpoint @"grab" h1 ()
-
+  void $ waitNSlots 40
+  Emulator.callEndpoint @"grab" h2 ()
   void $ waitNSlots 2
-
 

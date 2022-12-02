@@ -4,14 +4,13 @@
 module Beneficiary.Emulator where 
 
 import qualified Plutus.Trace.Emulator  as Emulator
+import qualified Wallet.Emulator.Wallet as Wallet
+import qualified Ledger.TimeSlot        as TimeSlot
 import Data.Default                     (Default(..))
 import Control.Monad.Freer.Extras       as Extras
 import Data.Functor                     (void)
 import Plutus.Trace
-import qualified Wallet.Emulator.Wallet as Wallet
-import qualified Ledger.TimeSlot        as TimeSlot
-
-import qualified Beneficiary.OffChain as OffChain
+import qualified Beneficiary.OffChain   as OffChain
 
 test :: IO ()
 test = Emulator.runEmulatorTraceIO trace1

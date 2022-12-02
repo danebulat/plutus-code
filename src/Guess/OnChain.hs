@@ -66,8 +66,8 @@ simpleValidator d r _ = traceIfFalse "Incorrect guess" (dData d == redeem r)
 
 simpleTypeV :: V2UtilsTypeScripts.TypedValidator VTypes
 simpleTypeV = V2UtilsTypeScripts.mkTypedValidator @VTypes
-    $$( PlutusTx.compile [|| simpleValidator ||] )
-    $$( PlutusTx.compile [|| wrap ||] )
+    $$(PlutusTx.compile [|| simpleValidator ||])
+    $$(PlutusTx.compile [|| wrap ||])
   where
     wrap = V2UtilsTypeScripts.mkUntypedValidator @Dat @Redeem
 

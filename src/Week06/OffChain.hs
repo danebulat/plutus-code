@@ -29,7 +29,7 @@ import Data.Maybe                          (fromJust)
 import Data.Text                           (Text, replicate)
 import qualified Data.Text                 as T
 import Text.Printf                         (printf)
-                                           
+
 import qualified PlutusTx                  
 import PlutusTx.Prelude                    
 import qualified Plutus.Contract           as PlutusContract
@@ -37,7 +37,7 @@ import qualified Ledger.Ada                as Ada
 import qualified Ledger.Tx                 as LedgerTx
 import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as Scripts
-import qualified Ledger                    (PaymentPubKeyHash, getCardanoTxId, unitRedeemer)
+import qualified Ledger
 import qualified Ledger.Constraints        as Constraints
 import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Interval as LedgerIntervalV1
@@ -113,8 +113,9 @@ mintToken tp = do
     Just (x, my) -> do
       oref <- ContractWallet.getUnspentOutput
       o    <- fromJust <$> PlutusContract.txOutFromRef oref
+
       PlutusContract.logDebug @P.String $ printf "picked UTxO at %s with value %s"
-        (P.show oref) (P.show $ LedgerTx._ciTxOutValue o)
+        (P.show oref) (P.show $ Ledger._decoratedTxOutValue o)
 
       let tn  = tpToken tp
           amt = tpAmount tp
@@ -123,8 +124,11 @@ mintToken tp = do
 
           -- Constraint differs depending on if address has a staking component
           mustPayToConstraint = case my of
-            Nothing -> Constraints.mustPayToPubKey x val          -- no staking component 
-            Just y  -> Constraints.mustPayToPubKeyAddress x y val -- staking component 
+            -- No staking component 
+            Nothing -> Constraints.mustPayToPubKey x val
+             -- Staking component 
+            Just _  ->  let addrStakingCred = fromJust $ Ledger.stakingCredential addr
+                        in Constraints.mustPayToPubKeyAddress x addrStakingCred val
 
           lookups     = Constraints.plutusV2MintingPolicy (OnChain.policy oref tn amt) P.<>
                         Constraints.unspentOutputs (Map.singleton oref o)

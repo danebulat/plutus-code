@@ -29,7 +29,7 @@ import qualified Ledger.Ada                                      as Ada
 import qualified Ledger (PaymentPubKeyHash(..), unPaymentPubKeyHash)
 import Data.Default
 
-  
+
 -- ----------------------------------------------------------------------
 -- Data where
 
