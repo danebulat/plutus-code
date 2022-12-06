@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE NoImplicitPrelude   #-}
 
-module Week07.Emulator where
+module Week07.EvenOdd.Emulator where
 
 import qualified Plutus.Trace.Emulator     as Emulator
 import Control.Monad.Freer.Extras          as Extras
@@ -20,8 +20,9 @@ import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
 import qualified Ledger.Ada                as Ada
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Ledger.TimeSlot           as TimeSlot
-import qualified Week07.OffChain           as OffChain
-import Week07.EvenOdd                      (GameChoice(..))
+
+import qualified Week07.EvenOdd.OffChain           as OffChain
+import Week07.EvenOdd.OnChain              (GameChoice(..))
 
 
 -- ----------------------------------------------------------------------

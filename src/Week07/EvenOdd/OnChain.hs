@@ -17,7 +17,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Week07.EvenOdd where
+module Week07.EvenOdd.OnChain where
 
 import qualified GHC.Generics                                    as GHCGenerics (Generic)
 import qualified Data.Aeson                                      as DataAeson (ToJSON, FromJSON)

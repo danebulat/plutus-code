@@ -95,9 +95,12 @@ library
         Week06.Emulator,
         Week06.Utils,
 
-        Week07.EvenOdd,
-        Week07.OffChain,
-        Week07.Emulator,
+        Week07.EvenOdd.OnChain,
+        Week07.EvenOdd.OffChain,
+        Week07.EvenOdd.Emulator,
+
+        -- Token Sale
+        Week08.OnChain,
 
         -- Basics
         Basics.ContractMonad,

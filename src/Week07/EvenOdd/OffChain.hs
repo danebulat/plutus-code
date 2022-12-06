@@ -14,7 +14,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Week07.OffChain where
+module Week07.EvenOdd.OffChain where
 
 import Control.Monad                       (void)
 import qualified GHC.Generics              as GHCGenerics (Generic)
@@ -42,7 +42,7 @@ import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Interval as LedgerInterval 
 import qualified Ledger.Address            as LAddressV1
 
-import qualified Week07.EvenOdd as OnChain
+import qualified Week07.EvenOdd.OnChain    as OnChain
 
 
 -- ----------------------------------------------------------------------
