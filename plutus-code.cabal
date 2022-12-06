@@ -101,6 +101,7 @@ library
 
         -- Token Sale
         Week08.OnChain,
+        Week08.OffChain,
 
         -- Basics
         Basics.ContractMonad,
