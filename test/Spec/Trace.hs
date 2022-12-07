@@ -34,18 +34,19 @@ import qualified Test.Tasty.HUnit    as HUnit
 
 import Week08.OffChain as OffChain
 import Week08.OnChain  as OnChain
-import qualified Ledger.Ada as Ledger
 
 
 -- ----------------------------------------------------------------------
 -- Tests function
 
 tests :: TestTree
-tests = checkPredicateOptions
-    myOptions
-    "token sale trace"
-    myPredicate
-    myTrace1
+tests = testGroup "Token Sale Tests" [
+  checkPredicateOptions myOptions "initialise" myPredicate1 myTrace1,
+  checkPredicateOptions myOptions "set price"  myPredicate2 myTrace2,
+  checkPredicateOptions myOptions "add tokens" myPredicate3 myTrace3,
+  checkPredicateOptions myOptions "buy tokens" myPredicate4 myTrace4,
+  checkPredicateOptions myOptions "withdraw"   myPredicate4 myTrace4
+  ]
 
 -- ----------------------------------------------------------------------
 -- Emulator config
@@ -58,7 +59,7 @@ emCfg = def {
   Emulator._initialChainState = Left $ Map.fromList
     [ (w1, v <> Value.assetClassValue (Value.AssetClass (tokenCurrency, threadTokenName)) 1
              <> Value.assetClassValue (Value.AssetClass (tokenCurrency, sellingTokenName)) 100)
-    , (w2, v)
+    , (w2, v <> Value.assetClassValue (Value.AssetClass (tokenCurrency, sellingTokenName)) 100)
     ]
   }
 
@@ -96,7 +97,9 @@ threadTokenCur = Value.AssetClass (tokenCurrency, threadTokenName)
 -- ----------------------------------------------------------------------
 -- Traces and predicates
 
+-- ----------------------------------------------------------------------
 -- Scenario 1: Initialise token sale
+
 myTrace1 :: EmulatorTrace ()
 myTrace1 = do
   h <- activateContractWallet w1 OffChain.startEndpoint
@@ -109,11 +112,222 @@ myTrace1 = do
   Extras.logInfo $ "initialised token sale: " ++ show m
   void $ Emulator.waitNSlots 1
 
-myPredicate :: TracePredicate
-myPredicate =
-  walletFundsChange w1 (Value.assetClassValue adaCur (negate minAsInt)
+myPredicate1 :: TracePredicate
+myPredicate1 =
+  walletFundsChange w1 (Value.assetClassValue adaCur (negate minLovelace)
                      <> Value.assetClassValue threadTokenCur (negate 1))
   where
-    minAsInt = Ledger.getLovelace $ Ledger.minAdaTxOut
+    minLovelace = Ada.getLovelace Ledger.minAdaTxOut
     adaCur = Value.AssetClass (Ada.adaSymbol, Ada.adaToken)
-                          
+
+
+-- ----------------------------------------------------------------------
+-- Scenario 2:  Initialise token sale and set token price
+
+myTrace2 :: EmulatorTrace ()
+myTrace2 = do
+  h <- activateContractWallet w1 OffChain.startEndpoint
+  
+  -- Initialise token sale
+  Emulator.callEndpoint @"start" h testTokenSale
+  void $ Emulator.waitNSlots 2
+  Last m <- observableState h
+
+  case m of
+    Nothing -> Extras.logError @String "error starting token sale"
+    Just ts -> do
+      Extras.logError @String $ "started token sale " ++ show ts
+      
+      -- Activate contract in wallet
+      h1 <- activateContractWallet w1 $ OffChain.useEndpoints testTokenSale
+
+      -- Call set price endpoint
+      Emulator.callEndpoint @"set price" h1 1_000_000
+      void $ Emulator.waitNSlots 2
+
+myPredicate2 :: TracePredicate
+myPredicate2 =
+       walletFundsChange w1 valueAtW1
+  .&&. valueAtAddress scriptAddr (== valueAtAddr)
+  where
+    minLovelace = Ada.getLovelace Ledger.minAdaTxOut
+    adaCur      = Value.AssetClass (Ada.adaSymbol, Ada.adaToken)
+    scriptAddr  = OnChain.tsScriptAddress testTokenSale
+
+    valueAtAddr = Value.assetClassValue adaCur minLovelace
+               <> Value.assetClassValue threadTokenCur 1
+               
+    valueAtW1   = Value.assetClassValue adaCur (negate minLovelace)
+               <> Value.assetClassValue threadTokenCur (negate 1)
+
+
+-- ----------------------------------------------------------------------
+-- Scenario 3: Add tokens to token sale
+
+myTrace3 :: EmulatorTrace ()
+myTrace3 = do
+  h <- activateContractWallet w1 OffChain.startEndpoint
+  
+  -- Initialise token sale
+  Emulator.callEndpoint @"start" h testTokenSale
+  void $ Emulator.waitNSlots 2
+  Last m <- observableState h
+
+  case m of
+    Nothing -> Extras.logError @String "error starting token sale"
+    Just ts -> do
+      Extras.logError @String $ "started token sale " ++ show ts
+      
+      h1 <- activateContractWallet w1 $ OffChain.useEndpoints testTokenSale
+      h2 <- activateContractWallet w2 $ OffChain.useEndpoints testTokenSale
+
+      -- Wallet 1 sets price
+      Emulator.callEndpoint @"set price" h1 1_000_000
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 1 adds tokens
+      Emulator.callEndpoint @"add tokens" h1 20
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 2 adds tokens
+      Emulator.callEndpoint @"add tokens" h2 20
+      void $ Emulator.waitNSlots 2
+
+myPredicate3 :: TracePredicate
+myPredicate3 =
+       walletFundsChange w1 valueAtW1
+  .&&. walletFundsChange w2 valueAtW2
+  .&&. valueAtAddress scriptAddr (== valueAtAddr)
+  where
+    minLovelace = Ada.getLovelace Ledger.minAdaTxOut
+    adaCur      = Value.AssetClass (Ada.adaSymbol, Ada.adaToken)
+    scriptAddr  = OnChain.tsScriptAddress testTokenSale
+
+    valueAtAddr = Value.assetClassValue adaCur minLovelace
+               <> Value.assetClassValue threadTokenCur 1
+               <> Value.assetClassValue sellingTokenCur 40
+               
+    valueAtW1   = Value.assetClassValue adaCur (negate minLovelace)
+               <> Value.assetClassValue threadTokenCur (negate 1)
+               <> Value.assetClassValue sellingTokenCur (negate 20)
+
+    valueAtW2   = Value.assetClassValue sellingTokenCur (negate 20)
+
+
+-- ----------------------------------------------------------------------
+-- Scenario 4: Buy tokens from token sale
+
+myTrace4 :: EmulatorTrace ()
+myTrace4 = do
+  h <- activateContractWallet w1 OffChain.startEndpoint
+  
+  -- Initialise token sale
+  Emulator.callEndpoint @"start" h testTokenSale
+  void $ Emulator.waitNSlots 2
+  Last m <- observableState h
+
+  case m of
+    Nothing -> Extras.logError @String "error starting token sale"
+    Just ts -> do
+      Extras.logError @String $ "started token sale " ++ show ts
+      
+      h1 <- activateContractWallet w1 $ OffChain.useEndpoints testTokenSale
+      h2 <- activateContractWallet w2 $ OffChain.useEndpoints testTokenSale
+
+      -- Wallet 1 sets price (Pass)
+      Emulator.callEndpoint @"set price" h1 1_000_000
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 1 adds tokens (Pass)
+      Emulator.callEndpoint @"add tokens" h1 20
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 2 buys 10 tokens for 10 ADA (Pass)
+      Emulator.callEndpoint @"buy tokens" h2 10
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 2 buys 500 tokens for 500 ADA (Fail)
+      Emulator.callEndpoint @"buy tokens" h2 500
+      void $ Emulator.waitNSlots 2
+
+myPredicate4 :: TracePredicate
+myPredicate4 =
+       walletFundsChange w1 valueAtW1
+  .&&. walletFundsChange w2 valueAtW2
+  .&&. valueAtAddress scriptAddr (== valueAtAddr)
+  where
+    minLovelace = Ada.getLovelace Ledger.minAdaTxOut
+    adaCur      = Value.AssetClass (Ada.adaSymbol, Ada.adaToken)
+    scriptAddr  = OnChain.tsScriptAddress testTokenSale
+
+    valueAtAddr = Value.assetClassValue adaCur          minLovelace
+               <> Value.assetClassValue adaCur          10_000_000
+               <> Value.assetClassValue threadTokenCur  1
+               <> Value.assetClassValue sellingTokenCur 10
+               
+    valueAtW1   = Value.assetClassValue adaCur          (negate minLovelace)
+               <> Value.assetClassValue threadTokenCur  (negate 1)
+               <> Value.assetClassValue sellingTokenCur (negate 20)
+
+    valueAtW2   = Value.assetClassValue sellingTokenCur 10
+               <> Value.assetClassValue adaCur          (negate 10_000_000)
+
+
+-- ----------------------------------------------------------------------
+-- Scenario 5: Withdraw tokens from token sale
+
+myTrace7 :: EmulatorTrace ()
+myTrace7 = do
+  h <- activateContractWallet w1 OffChain.startEndpoint
+  
+  -- Initialise token sale
+  Emulator.callEndpoint @"start" h testTokenSale
+  void $ Emulator.waitNSlots 2
+  Last m <- observableState h
+
+  case m of
+    Nothing -> Extras.logError @String "error starting token sale"
+    Just ts -> do
+      Extras.logError @String $ "started token sale " ++ show ts
+      
+      h1 <- activateContractWallet w1 $ OffChain.useEndpoints testTokenSale
+      h2 <- activateContractWallet w2 $ OffChain.useEndpoints testTokenSale
+
+      -- Wallet 1 sets price (Pass)
+      Emulator.callEndpoint @"set price" h1 1_000_000
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 1 adds 80 tokens (Pass)
+      Emulator.callEndpoint @"add tokens" h1 80
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 2 buys 70 tokens for 70 ADA (Pass)
+      Emulator.callEndpoint @"buy tokens" h2 70
+      void $ Emulator.waitNSlots 2
+
+      -- Wallet 1 withdraws 60 ADA and 2 tokens from contract (Pass)
+      Emulator.callEndpoint @"withdraw" h1 (2, 60_000_000)
+      void $ Emulator.waitNSlots 2
+
+myPredicate5 :: TracePredicate
+myPredicate5 =
+       walletFundsChange w1 valueAtW1
+  .&&. walletFundsChange w2 valueAtW2
+  .&&. valueAtAddress scriptAddr (== valueAtAddr)
+  where
+    minLovelace = Ada.getLovelace Ledger.minAdaTxOut
+    adaCur      = Value.AssetClass (Ada.adaSymbol, Ada.adaToken)
+    scriptAddr  = OnChain.tsScriptAddress testTokenSale
+
+    valueAtAddr = Value.assetClassValue adaCur          minLovelace
+               <> Value.assetClassValue adaCur          10_000_000
+               <> Value.assetClassValue threadTokenCur  1
+               <> Value.assetClassValue sellingTokenCur 8
+               
+    valueAtW1   = Value.assetClassValue adaCur          (negate minLovelace)
+               <> Value.assetClassValue adaCur          60_000_000
+               <> Value.assetClassValue threadTokenCur  (negate 1)
+               <> Value.assetClassValue sellingTokenCur (negate 78)
+
+    valueAtW2   = Value.assetClassValue sellingTokenCur 70
+               <> Value.assetClassValue adaCur          (negate 70_000_000)
