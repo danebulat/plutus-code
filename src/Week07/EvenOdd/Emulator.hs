@@ -21,7 +21,7 @@ import qualified Ledger.Ada                as Ada
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Ledger.TimeSlot           as TimeSlot
 
-import qualified Week07.EvenOdd.OffChain           as OffChain
+import qualified Week07.EvenOdd.OffChain   as OffChain
 import Week07.EvenOdd.OnChain              (GameChoice(..))
 
 

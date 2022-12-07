@@ -9,9 +9,7 @@
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DerivingStrategies  #-}
-{-# LANGUAGE RecordWildCards     #-}
 
-{-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 module Week07.EvenOdd.OffChain where
@@ -22,11 +20,8 @@ import qualified Data.Aeson                as DataAeson (ToJSON, FromJSON)
 import qualified Data.OpenApi.Schema       as DataOpenApiSchema (ToSchema)
 
 import qualified Prelude                   as P
-import Data.Void                           (Void)
 import qualified Data.Map                  as Map
-import Data.Maybe                          (fromJust, maybe)
 import Data.Text                           (Text)
-import qualified Data.Text                 as T
 import Text.Printf                         (printf)
 
 import qualified PlutusTx                  
@@ -37,7 +32,6 @@ import qualified Ledger.Tx                 as LedgerTx
 import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
 import qualified Ledger
 import qualified Ledger.Constraints        as Constraints
-import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Interval as LedgerInterval 
 import qualified Ledger.Address            as LAddressV1
@@ -223,11 +217,10 @@ secondGame sp = do
           -- Construct Play transaction
           lookups = Constraints.unspentOutputs (Map.singleton oref o) P.<>
                     Constraints.typedValidatorLookups (OnChain.typedGameValidator game)
-                    --Constraints.plutusV1TypedValidatorLookups (OnChain.typedGameValidator game)
                     
           tx      = Constraints.mustSpendScriptOutput oref
                       (LedgerApiV2.Redeemer $ PlutusTx.toBuiltinData $ OnChain.Play c) P.<>
-                    Constraints.mustPayToTheScriptWithInlineDatum (OnChain.GameDatum bs $ Just c) v   P.<>
+                    Constraints.mustPayToTheScriptWithInlineDatum (OnChain.GameDatum bs $ Just c) v P.<>
                     Constraints.mustValidateIn (LedgerInterval.to now) P.<>
                     Constraints.mustBeSignedBy pkh
 

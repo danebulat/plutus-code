@@ -2,6 +2,7 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -17,11 +18,11 @@
 module Week08.OffChain where
 
 
-import Control.Monad                       (void)
+import Control.Monad                       (void, forever)
 import qualified GHC.Generics              as GHCGenerics (Generic)
 import qualified Data.Aeson                as DataAeson (ToJSON, FromJSON)
 import qualified Data.OpenApi.Schema       as DataOpenApiSchema (ToSchema)
-
+                                           
 import qualified Prelude                   as P
 import Data.Void                           (Void)
 import qualified Data.Map                  as Map
@@ -30,20 +31,20 @@ import Data.Monoid                         (Last(..))
 import Data.Text                           (Text)
 import qualified Data.Text                 as T
 import Text.Printf                         (printf)
-
+                                           
 import qualified PlutusTx                  
 import PlutusTx.Prelude                    
-import qualified Plutus.Contract           as PlutusContract
+import qualified Plutus.Contract           as PC
 import qualified Ledger.Ada                as Ada
 import qualified Ledger.Tx                 as LedgerTx
 import qualified Plutus.V2.Ledger.Api      as LedgerApiV2
-import qualified Ledger
+import qualified Ledger                    
 import qualified Ledger.Constraints        as Constraints
 import qualified Plutus.V1.Ledger.Scripts  as ScriptsLedger
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Interval as LedgerInterval 
 import qualified Ledger.Address            as LAddressV1
-
+                                           
 import qualified Week08.OnChain            as OnChain
 
 
@@ -52,10 +53,10 @@ import qualified Week08.OnChain            as OnChain
 
 findTsOutput
     :: OnChain.TokenSale
-    -> PlutusContract.Contract w s Text
+    -> PC.Contract w s Text
          (Maybe (Ledger.TxOutRef, Ledger.DecoratedTxOut, Integer))
 findTsOutput ts = do
-  utxos <- PlutusContract.utxosAt $ OnChain.tsScriptAddress ts
+  utxos <- PC.utxosAt $ OnChain.tsScriptAddress ts
 
   case find hasThreadToken $ Map.toList utxos of
     Nothing -> return Nothing
@@ -79,30 +80,36 @@ findTsOutput ts = do
 -- ----------------------------------------------------------------------
 -- Action: Start Token Sale 
 
-startTS :: OnChain.TokenSale -> PlutusContract.Contract (Last OnChain.TokenSale) s Text ()
+startTS :: OnChain.TokenSale -> PC.Contract (Last OnChain.TokenSale) s Text ()
 startTS ts = do
   let
+    v       = Value.assetClassValue (OnChain.tsTT ts) 1 P.<>
+              Ada.lovelaceValueOf (Ada.getLovelace Ledger.minAdaTxOut)
     dat     = 0
+    
     lookups = Constraints.typedValidatorLookups (OnChain.tsTypedValidator ts)
-    tx      = Constraints.mustPayToTheScriptWithInlineDatum dat mempty P.<>
+    tx      = Constraints.mustPayToTheScriptWithInlineDatum dat v P.<>
               Constraints.mustBeSignedBy (OnChain.tsSeller ts)
 
   -- Submit tx to produce initial UTXO
-  ledgerTx <- PlutusContract.submitTxConstraintsWith @OnChain.TS lookups tx
-  void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
-  PlutusContract.logInfo @P.String "produced token sale output"
+  ledgerTx <- PC.submitTxConstraintsWith @OnChain.TS lookups tx
+  void $ PC.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
+
+  -- Tell token sale
+  PC.tell $ Last $ Just ts
+  PC.logInfo @P.String "produced token sale output"
 
 
 -- ----------------------------------------------------------------------
 -- Action: Set Price
 
-setPrice :: OnChain.TokenSale -> Integer -> PlutusContract.Contract w s Text ()
+setPrice :: OnChain.TokenSale -> Integer -> PC.Contract w s Text ()
 setPrice ts p = do
   m <- findTsOutput ts
   case m of
-    Nothing -> PlutusContract.logInfo @P.String "token sale utxo not found"
+    Nothing -> PC.logInfo @P.String "token sale utxo not found"
     Just (oref, o, _) -> do
-      PlutusContract.logInfo @P.String "token sale utxo found"
+      PC.logInfo @P.String "token sale utxo found"
 
       let
         lookups =
@@ -117,22 +124,32 @@ setPrice ts p = do
           Constraints.mustBeSignedBy (OnChain.tsSeller ts)
 
       -- Submit tx to set a new token price
-      ledgerTx <- PlutusContract.submitTxConstraintsWith @OnChain.TS lookups tx
-      void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
-      PlutusContract.logInfo @P.String $ printf "set token price to %d lovelace" p
+      ledgerTx <- PC.submitTxConstraintsWith @OnChain.TS lookups tx
+      void $ PC.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
+      PC.logInfo @P.String $ printf "set token price to %d lovelace" p
+
+      -- DEBUGGING ----------------------------------------------------
+      -- Get UTXO back and log datum value.
+
+      m' <- findTsOutput ts
+      case m' of
+        Nothing        -> PC.logInfo @P.String "token sale utxo not found"
+        Just (_, _, d) -> PC.logInfo @P.String $ printf "datum set to: %d" d
 
 
 -- ----------------------------------------------------------------------
 -- Action: Add Tokens
 
-addTokens :: OnChain.TokenSale -> Integer -> PlutusContract.Contract w s Text ()
+addTokens :: OnChain.TokenSale -> Integer -> PC.Contract w s Text ()
 addTokens ts n = do
   m <- findTsOutput ts
   case m of
-    Nothing -> PlutusContract.logInfo @P.String "token sale utxo not found"
+    Nothing -> PC.logInfo @P.String "token sale utxo not found"
     Just (oref, o, p) -> do
-      PlutusContract.logInfo @P.String "token sale utxo found"
+      PC.logInfo @P.String "token sale utxo found"
 
+      -- TODO: Check if script has minimum ADA. Add to tx if required.
+      
       let
         lookups =
           Constraints.unspentOutputs (Map.singleton oref o) P.<>
@@ -146,27 +163,27 @@ addTokens ts n = do
              Value.assetClassValue (OnChain.tsToken ts) n)
 
       -- Submit tx to add tokens to the script
-      ledgerTx <- PlutusContract.submitTxConstraintsWith @OnChain.TS lookups tx
-      void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
-      PlutusContract.logInfo @P.String $ printf "paid %d tokens to the script" n
+      ledgerTx <- PC.submitTxConstraintsWith @OnChain.TS lookups tx
+      void $ PC.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
+      PC.logInfo @P.String $ printf "paid %d tokens to the script" n
 
 
 -- ----------------------------------------------------------------------
 -- Action: Buy Tokens
 
-buyTokens :: OnChain.TokenSale -> Integer -> PlutusContract.Contract w s Text ()
+buyTokens :: OnChain.TokenSale -> Integer -> PC.Contract w s Text ()
 buyTokens ts n = do
   m <- findTsOutput ts
   case m of
-    Nothing -> PlutusContract.logInfo @P.String "token sale utxo not found"
+    Nothing -> PC.logInfo @P.String "token sale utxo not found"
     Just (oref, o, p) -> do
-      PlutusContract.logInfo @P.String "token sale utxo found"
+      PC.logInfo @P.String "token sale utxo found"
 
       -- Check if contract holds enough tokens
       if Value.assetClassValueOf (Ledger._decoratedTxOutValue o) (OnChain.tsToken ts) <= n
-        then PlutusContract.logInfo @P.String "contract doesn't hold enough tokens"
+        then PC.logInfo @P.String "contract doesn't hold enough tokens"
         else do
-          pkh <- PlutusContract.ownFirstPaymentPubKeyHash
+          pkh <- PC.ownFirstPaymentPubKeyHash
           
           let
             scriptOutVal =
@@ -175,7 +192,8 @@ buyTokens ts n = do
               Value.assetClassValue (OnChain.tsToken ts) (negate n)
 
             buyerReceiveValue =
-              Value.assetClassValue (OnChain.tsToken ts) n
+              Value.assetClassValue (OnChain.tsToken ts) n P.<>
+              Ada.adaValueOf (Ada.getAda Ledger.minAdaTxOut) -- add min ada
           
           let
             lookups =
@@ -190,22 +208,22 @@ buyTokens ts n = do
               Constraints.mustBeSignedBy pkh
           
           -- Submit tx to buy tokens from the contract
-          ledgerTx <- PlutusContract.submitTxConstraintsWith @OnChain.TS lookups tx
-          void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
-          PlutusContract.logInfo @P.String $
+          ledgerTx <- PC.submitTxConstraintsWith @OnChain.TS lookups tx
+          void $ PC.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
+          PC.logInfo @P.String $
             printf "bought %d tokens for %d lovelace" n (n * p)
 
 
 -- ----------------------------------------------------------------------
 -- Action: Withdraw Tokens
 
-withdraw :: OnChain.TokenSale -> Integer -> Integer -> PlutusContract.Contract w s Text ()
+withdraw :: OnChain.TokenSale -> Integer -> Integer -> PC.Contract w s Text ()
 withdraw ts n l = do
   m <- findTsOutput ts
   case m of
-    Nothing -> PlutusContract.logInfo @P.String "token sale utxo not found"
+    Nothing -> PC.logInfo @P.String "token sale utxo not found"
     Just (oref, o, p) -> do
-      PlutusContract.logInfo @P.String "token sale utxo found"
+      PC.logInfo @P.String "token sale utxo found"
 
       -- Check if contract holds enough tokens for the withdrawal
       let
@@ -220,7 +238,7 @@ withdraw ts n l = do
 
       -- Min ada value in calculation
       if tokensInScript < n || lovelaceInScript < l
-        then PlutusContract.logInfo @P.String "script doesn't contain enough assets"
+        then PC.logInfo @P.String "script doesn't contain enough assets"
         else do 
           let
             scriptOutValue =
@@ -228,9 +246,10 @@ withdraw ts n l = do
               Ada.lovelaceValueOf (negate l) P.<>
               Value.assetClassValue (OnChain.tsToken ts) (negate n)
           
-            buyerReceiveValue =
+            sellerReceiveValue =
               Ada.lovelaceValueOf l P.<>
-              Value.assetClassValue (OnChain.tsToken ts) n
+              Value.assetClassValue (OnChain.tsToken ts) n  P.<>
+              Ada.adaValueOf (Ada.getAda Ledger.minAdaTxOut) -- add min ada
           
           let
             lookups =
@@ -239,26 +258,64 @@ withdraw ts n l = do
              
             tx =
               Constraints.mustSpendScriptOutput oref
-                (Ledger.Redeemer $ PlutusTx.toBuiltinData $ OnChain.Withdraw n l) P.<>
-              Constraints.mustPayToTheScriptWithInlineDatum p scriptOutValue      P.<>
-              Constraints.mustPayToPubKey (OnChain.tsSeller ts) buyerReceiveValue P.<>
+                (Ledger.Redeemer $ PlutusTx.toBuiltinData $ OnChain.Withdraw n l)  P.<>
+              Constraints.mustPayToTheScriptWithInlineDatum p scriptOutValue       P.<>
+              Constraints.mustPayToPubKey (OnChain.tsSeller ts) sellerReceiveValue P.<>
               Constraints.mustBeSignedBy (OnChain.tsSeller ts)
           
           -- Submit tx to buy tokens from the contract
-          ledgerTx <- PlutusContract.submitTxConstraintsWith @OnChain.TS lookups tx
-          void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
-          PlutusContract.logInfo @P.String $
+          ledgerTx <- PC.submitTxConstraintsWith @OnChain.TS lookups tx
+          void $ PC.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
+          PC.logInfo @P.String $
             printf "withdrew %d tokens and %d lovelace" n l
           
 
 -- ----------------------------------------------------------------------
--- Endpoints
+-- Schema
 
 type TSStartSchema =
-        PlutusContract.Endpoint "start" OnChain.TokenSale --(Ledger.CurrencySymbol, Ledger.TokenName)
+        PC.Endpoint "start" OnChain.TokenSale --(Ledger.CurrencySymbol, Ledger.TokenName)
 
 type TSUseSchema =
-                           PlutusContract.Endpoint "set price"  Integer
-        PlutusContract..\/ PlutusContract.Endpoint "add tokens" Integer
-        PlutusContract..\/ PlutusContract.Endpoint "buy tokens" Integer
-        PlutusContract..\/ PlutusContract.Endpoint "withdraw"   (Integer, Integer)
+               PC.Endpoint "set price"  Integer
+        PC..\/ PC.Endpoint "add tokens" Integer
+        PC..\/ PC.Endpoint "buy tokens" Integer
+        PC..\/ PC.Endpoint "withdraw"   (Integer, Integer)
+
+
+-- ----------------------------------------------------------------------
+-- Endpoints
+
+startEndpoint
+    :: PC.Contract (Last OnChain.TokenSale) TSStartSchema Text ()
+startEndpoint = forever
+              $ PC.handleError PC.logError
+              $ PC.awaitPromise
+              $ PC.endpoint @"start" startTS
+
+
+useEndpoints
+    :: OnChain.TokenSale -> PC.Contract () TSUseSchema Text ()
+useEndpoints = useEndpoints'
+
+
+useEndpoints'
+    :: ( PC.HasEndpoint "set price"  Integer s
+       , PC.HasEndpoint "add tokens" Integer s
+       , PC.HasEndpoint "buy tokens" Integer s
+       , PC.HasEndpoint "withdraw"   (Integer, Integer) s
+       )
+    => OnChain.TokenSale
+    -> PC.Contract () s Text ()
+useEndpoints' ts = forever
+                $ PC.handleError PC.logError
+                $ PC.awaitPromise
+                $ setPrice'  `PC.select`
+                  addTokens' `PC.select`
+                  buyTokens' `PC.select`
+                  withdraw'
+  where
+    setPrice'  = PC.endpoint @"set price"  $ setPrice ts
+    addTokens' = PC.endpoint @"add tokens" $ addTokens ts
+    buyTokens' = PC.endpoint @"buy tokens" $ buyTokens ts
+    withdraw'  = PC.endpoint @"withdraw"   $ P.uncurry $ withdraw ts

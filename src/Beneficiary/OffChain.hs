@@ -112,14 +112,14 @@ grab GrabParams{..} = do
         Just dat -> do
           let r        = OnChain.Redeem { OnChain.redeem = grabRedeem }
               lookups  = Constraints.unspentOutputs (Map.singleton oref o)     P.<>
-                       Constraints.plutusV2OtherScript OnChain.validator
+                         Constraints.plutusV2OtherScript OnChain.validator
 
               tx       = Constraints.mustSpendScriptOutput oref
                            (ScriptsLedger.Redeemer $ PlutusTx.toBuiltinData r) P.<>
                          Constraints.mustValidateIn (LedgerApiV2.from now)     P.<>
                          Constraints.mustPayToPubKey (OnChain.creator dat)
                            (getTotalValuePay o)                                P.<>
-                         Constraints.mustBeSignedBy pkh
+                         Constraints.mustBeSignedBy (OnChain.beneficiary dat)
 
           submittedTx <- PlutusContract.submitTxConstraintsWith @OnChain.Simple lookups tx
           Monad.void $ PlutusContract.awaitTxConfirmed $ LedgerTx.getCardanoTxId submittedTx
