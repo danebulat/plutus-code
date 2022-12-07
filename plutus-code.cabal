@@ -147,6 +147,31 @@ library
       base16-bytestring
     hs-source-dirs: src
 
+test-suite token-sale-tests
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    hs-source-dirs:   test
+    other-modules:    Spec.Trace
+    default-language: Haskell2010
+    ghc-options: -Wall -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+    build-depends:
+      base >= 4.9 && < 5,
+      containers,
+      data-default,
+      freer-extras,
+      lens,
+      plutus-code,
+      plutus-contract,
+      plutus-ledger,
+      plutus-tx,
+      QuickCheck,
+      tasty,
+      tasty-hunit,
+      tasty-quickcheck,
+      text
+    if !(impl(ghcjs) || os(ghcjs))
+      build-depends: plutus-tx-plugin -any
+    
 executable token-policy
     main-is:          token-policy.hs
     hs-source-dirs:   app
