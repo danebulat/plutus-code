@@ -23,6 +23,7 @@ import Data.Monoid                   (Last (..))
 import Ledger
 import qualified Ledger.Value        as Value
 import Ledger.Ada                    as Ada
+import PlutusTx.Coverage
 import Plutus.Contract.Test
 import Plutus.Contract.Test.Coverage 
 import Plutus.Trace.Emulator         as Emulator
@@ -35,6 +36,26 @@ import qualified Test.Tasty.HUnit    as HUnit
 import Week08.OffChain as OffChain
 import Week08.OnChain  as OnChain
 
+-- ----------------------------------------------------------------------
+-- Test coverage
+
+-- Doesn't work (output file empty)
+testCoverage :: IO ()
+testCoverage = do
+  cref <- newCoverageRef
+  e <- try $ defaultMain $ checkPredicateCoverageOptions
+         myOptions
+         "token sale trace"
+         cref
+         myPredicate5
+         myTrace5
+  case e of
+    Left (c :: ExitCode) -> do
+      putStrLn $ "Tasty exited with: " ++ show c
+      report <- readCoverageRef cref
+      writeCoverageReport "TokenSaleTrace" $ CoverageReport OnChain.tsCovIdx report
+    Right () -> putStrLn "unexpected tasty result"
+    
 
 -- ----------------------------------------------------------------------
 -- Tests function
@@ -45,7 +66,7 @@ tests = testGroup "Token Sale Tests" [
   checkPredicateOptions myOptions "set price"  myPredicate2 myTrace2,
   checkPredicateOptions myOptions "add tokens" myPredicate3 myTrace3,
   checkPredicateOptions myOptions "buy tokens" myPredicate4 myTrace4,
-  checkPredicateOptions myOptions "withdraw"   myPredicate4 myTrace4
+  checkPredicateOptions myOptions "withdraw"   myPredicate5 myTrace5
   ]
 
 -- ----------------------------------------------------------------------
@@ -276,8 +297,8 @@ myPredicate4 =
 -- ----------------------------------------------------------------------
 -- Scenario 5: Withdraw tokens from token sale
 
-myTrace7 :: EmulatorTrace ()
-myTrace7 = do
+myTrace5 :: EmulatorTrace ()
+myTrace5 = do
   h <- activateContractWallet w1 OffChain.startEndpoint
   
   -- Initialise token sale
