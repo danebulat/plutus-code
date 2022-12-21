@@ -108,7 +108,7 @@ emCfg2 = def {
   Emulator._initialChainState = Left $ Map.fromList
     [ (w1, v <> Value.assetClassValue (Value.AssetClass (tokenCurrency, threadTokenName)) 1
              <> Value.assetClassValue (Value.AssetClass (tokenCurrency, sellingTokenName)) 100)
-    , (w2, v <> Value.assetClassValue (Value.AssetClass (tokenCurrency, sellingTokenName)) 40)
+    , (w2, v <> Value.assetClassValue (Value.AssetClass (tokenCurrency, sellingTokenName)) 100)
     ]
   }
 

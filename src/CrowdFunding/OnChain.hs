@@ -17,56 +17,57 @@
 
 module CrowdFunding.OnChain where
 
+import Data.Default
+import qualified Data.Map                                        as Map
+
 import PlutusTx
 import PlutusTx.Prelude
-import qualified Ledger.Address                                  as V1LAddress
-import qualified Plutus.V2.Ledger.Api                            as V2LedgerApi
-import qualified Plutus.V2.Ledger.Contexts                       as Contexts
+import qualified Ledger                                          as L
+import qualified Ledger.Address                                  as LAddressV1
+import qualified Plutus.V2.Ledger.Api                            as LV2
+import qualified Plutus.V2.Ledger.Contexts                       as Ctx
 import qualified Plutus.Script.Utils.V2.Typed.Scripts.Validators as V2UtilsTypeScripts
 import qualified Prelude                                         as P
-import qualified Plutus.V1.Ledger.Interval                       as LedgerIntervalV1
+import qualified Plutus.V1.Ledger.Interval                       as I
+import qualified Plutus.V1.Ledger.Value                          as V
 import qualified Ledger.Ada                                      as Ada
-import qualified Ledger (PaymentPubKeyHash(..), unPaymentPubKeyHash)
-import Data.Default
-
+import Ledger.Value (assetClassValueOf)
 
 -- ----------------------------------------------------------------------
--- Data where
+-- Parameter
 
 type Lovelace = Integer
 
--- Param
-data CrowdParams = CrowdParams
-  { beneficiary    :: Ledger.PaymentPubKeyHash
-  , targetAmount   :: Ada.Ada
-  , deadline       :: V2LedgerApi.POSIXTime
+data Param = Param
+  { pTT          :: !L.AssetClass
+  , pBeneficiary :: !L.PaymentPubKeyHash
+  , pCreator     :: !L.PaymentPubKeyHash
+  , pDeadline    :: !L.POSIXTime
+  , pTarget      :: !Lovelace
+  } deriving (P.Show, P.Eq)
+
+PlutusTx.unstableMakeIsData ''Param
+PlutusTx.makeLift ''Param
+
+-- ----------------------------------------------------------------------
+-- Datum
+
+newtype Dat = Dat
+  { dContributors :: [(L.PaymentPubKeyHash, V.Value)]
   }
 
-instance Default CrowdParams where
-  def = CrowdParams
-          { beneficiary  = Ledger.PaymentPubKeyHash
-                           "1ca9410b9c346768a410f8aa3599ad6ff134864e7381e2cb8c83db0a"
-          , targetAmount = 100_000_000
-          , deadline     = 1669063800000
-          }
-
-PlutusTx.unstableMakeIsData ''CrowdParams
-PlutusTx.makeLift ''CrowdParams
-
--- Datum
-newtype Dat = Dat
-  { contributor :: Ledger.PaymentPubKeyHash }
-
 PlutusTx.unstableMakeIsData ''Dat
+PlutusTx.makeLift ''Dat
 
+-- ----------------------------------------------------------------------
 -- Redeemer
--- TODO: Figure out how to calculate if the target was met on-chain.
--- Instead of using a Bool provided off-chain.
-data Redeem =
-  Contribute | Withdraw | Close Bool
+
+data Redeem
+  = AddTokens    !Lovelace  -- contributor adds lovelace
+  | RemoveTokens !Lovelace  -- contributor removes lovelace
+  | Withdraw                -- beneficiary withdraws lovelace
 
 PlutusTx.unstableMakeIsData ''Redeem
-
 
 -- ----------------------------------------------------------------------
 -- Set Datum and Redeemer types 
@@ -76,71 +77,129 @@ instance V2UtilsTypeScripts.ValidatorTypes VTypes where
   type instance RedeemerType VTypes = Redeem
   type instance DatumType    VTypes = Dat
 
-
 -- ----------------------------------------------------------------------
 -- Validator script 
 
-{-# INLINEABLE validatorCrowdFundTx #-}
-validatorCrowdFundTx
-    :: CrowdParams
-    -> Dat
-    -> Redeem
-    -> Contexts.ScriptContext
-    -> Bool 
-validatorCrowdFundTx params dat red context =
-    case red of
-      Contribute ->
-        traceIfFalse "deadline passed" beforeDeadline
-      
-      Withdraw ->
-        traceIfFalse "signer is not the contributor"
-          (checkTxSignerWith $ contributor dat) &&
-        traceIfFalse "deadline passed" beforeDeadline
-      
-      Close targetMet ->
-        traceIfFalse "signer is not the beneficiary"
-                     (checkTxSignerWith $ beneficiary params)   &&
-        traceIfFalse "deadline not passed" (not beforeDeadline) &&
-        traceIfFalse "target not met" targetMet
+{-# INLINABLE getUtxoDatum #-}
+getUtxoDatum :: Ctx.TxOut -> Dat
+getUtxoDatum out = case LV2.txOutDatum out of
+  LV2.NoOutputDatum     -> traceError "no datum in own output"
+  LV2.OutputDatumHash _ -> traceError "datum hash not expected"
+  LV2.OutputDatum d     ->
+    case PlutusTx.fromBuiltinData $ LV2.getDatum d of
+      Nothing -> traceError "error converting Datum to Integer"
+      Just dat -> dat
 
-        -- TODO: Figure out how to refund contributors if
-        -- the target was not met.
+{-# INLINEABLE validateCrowdfunding #-}
+validateCrowdfunding :: Param -> Dat -> Redeem -> Ctx.ScriptContext -> Bool 
+validateCrowdfunding param dat red ctx =
+
+  -- Check spending UTXO has the thread token
+  traceIfFalse "token missing from input" inputHasThreadToken &&
+
+  case red of
+
+    -- Add lovelace to contract
+    AddTokens n ->
+      traceIfFalse "deadline passed"                beforeDeadline       &&
+      traceIfFalse "thread token missing in output" outputHasThreadToken &&
+      traceIfFalse "wrong output datum"             False                &&
+      traceIfFalse "wrong output value"             False
+                                                 
+    RemoveTokens n ->
+      traceIfFalse "deadline passed"                beforeDeadline       &&
+      traceIfFalse "thread token missing in output" outputHasThreadToken &&
+      traceIfFalse "wrong output datum"             False                &&
+      traceIfFalse "wrong output value"             False
+
+    Withdraw ->
+      traceIfFalse "deadline not passed"            (not beforeDeadline) &&
+      traceIfFalse "thread token missing in output" outputHasThreadToken &&
+      traceIfFalse "target not met"                 targetMet            &&
+      traceIfFalse "not signed by beneficiary"      (checkTxSigner $ pBeneficiary param) &&
+      traceIfFalse "royalty not paid to creator"    False
+
+    -- Invalid transaction
+    _ -> False
+
   where
-    txInfo :: V2LedgerApi.TxInfo
-    txInfo = V2LedgerApi.scriptContextTxInfo context
+    txInfo :: LV2.TxInfo
+    txInfo = LV2.scriptContextTxInfo ctx
 
     beforeDeadline :: Bool
-    beforeDeadline = LedgerIntervalV1.contains
-      (LedgerIntervalV1.to $ deadline params)
-      (Contexts.txInfoValidRange txInfo)
+    beforeDeadline = I.contains (I.to $ pDeadline param) (Ctx.txInfoValidRange txInfo)
 
-    checkTxSignerWith :: Ledger.PaymentPubKeyHash -> Bool
-    checkTxSignerWith pkh = Contexts.txSignedBy txInfo contributorPkh
-      where
-        contributorPkh = Ledger.unPaymentPubKeyHash pkh
+    checkTxSigner :: L.PaymentPubKeyHash -> Bool
+    checkTxSigner pkh = Ctx.txSignedBy txInfo (L.unPaymentPubKeyHash pkh)
+
+    -- Target met
+    targetMet :: Bool
+    targetMet = lovelace >= pTarget param
+      where lovelace = Ada.getLovelace $ Ada.fromValue (LV2.txOutValue ownInput)
+
+    -- --------------------------------------------------
+    -- Own input checking
+    
+    -- Get input currently being validated
+    ownInput :: LV2.TxOut
+    ownInput = case Ctx.findOwnInput ctx of
+      Nothing -> traceError "own script input missing"
+      Just txInInfo -> LV2.txInInfoResolved txInInfo
+
+    inputHasThreadToken :: Bool
+    inputHasThreadToken = n == 1
+      where n = V.assetClassValueOf (LV2.txOutValue ownInput) (pTT param)
+
+    -- --------------------------------------------------
+    -- Own output checking
+
+    -- Get all outputs that pay to the script address we're spending from
+    ownOutput :: LV2.TxOut
+    ownOutput = case Ctx.getContinuingOutputs ctx of
+      [o] -> o
+      _   -> traceError "expected exactly one output to script address"
+
+    outputHasThreadToken :: Bool
+    outputHasThreadToken = n == 1
+      where n = V.assetClassValueOf  (LV2.txOutValue ownOutput) (pTT param)
+
+    -- --------------------------------------------------
+    -- Datum checking
+
+    -- Make sure tx is signed by one pkh
+    getSignerPkh :: L.PaymentPubKeyHash
+    getSignerPkh = case LV2.txInfoSignatories txInfo of
+      [pkh] -> L.PaymentPubKeyHash pkh
+      _     -> traceError "more than one signer"
+    
+    -- Get own output datum
+    outputDatum :: Dat
+    outputDatum = getUtxoDatum ownOutput
+    
+    -- Check datum
+    checkDatum :: Bool
+    checkDatum = True
 
 
 -- ----------------------------------------------------------------------
 -- Boilerplate 
 
-validatorCrowdFundTxTyped
-    :: CrowdParams
-    -> V2UtilsTypeScripts.TypedValidator VTypes
-validatorCrowdFundTxTyped crowdParams =
+validatorCrowdfundTyped :: Param -> V2UtilsTypeScripts.TypedValidator VTypes
+validatorCrowdfundTyped param =
   V2UtilsTypeScripts.mkTypedValidator @VTypes
-    ($$( PlutusTx.compile [|| validatorCrowdFundTx ||])
+    ($$( PlutusTx.compile [|| validateCrowdfunding ||])
         `PlutusTx.applyCode`
-         PlutusTx.liftCode crowdParams)
+         PlutusTx.liftCode param)
     $$( PlutusTx.compile [|| wrap ||] )
   where
     wrap = V2UtilsTypeScripts.mkUntypedValidator @Dat @Redeem
 
-validator :: CrowdParams -> V2LedgerApi.Validator
-validator = V2UtilsTypeScripts.validatorScript . validatorCrowdFundTxTyped
+validator :: Param -> L.Validator
+validator = V2UtilsTypeScripts.validatorScript . validatorCrowdfundTyped
 
-validatorHash :: CrowdParams -> V2LedgerApi.ValidatorHash
-validatorHash = V2UtilsTypeScripts.validatorHash . validatorCrowdFundTxTyped
+validatorHash :: Param -> L.ValidatorHash
+validatorHash = V2UtilsTypeScripts.validatorHash . validatorCrowdfundTyped
 
-address :: CrowdParams -> V1LAddress.Address
-address = V1LAddress.scriptHashAddress . validatorHash
+address :: Param -> L.Address
+address = LAddressV1.scriptHashAddress . validatorHash
 

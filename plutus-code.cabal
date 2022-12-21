@@ -152,6 +152,7 @@ test-suite token-sale-tests
     main-is:          Spec.hs
     hs-source-dirs:   test
     other-modules:    Spec.Trace
+                    , Spec.Model
     default-language: Haskell2010
     ghc-options: -Wall -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
     build-depends:

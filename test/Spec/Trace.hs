@@ -55,7 +55,7 @@ testCoverage = do
       report <- readCoverageRef cref
       writeCoverageReport "TokenSaleTrace" $ CoverageReport OnChain.tsCovIdx report
     Right () -> putStrLn "unexpected tasty result"
-    
+
 
 -- ----------------------------------------------------------------------
 -- Tests function

@@ -7,10 +7,7 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DerivingStrategies  #-}
-{-# LANGUAGE RecordWildCards     #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports   #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
@@ -46,6 +43,8 @@ import qualified Plutus.V1.Ledger.Interval as LedgerInterval
 import qualified Ledger.Address            as LAddressV1
                                            
 import qualified Week08.OnChain            as OnChain
+import qualified Ledger.Constraints as Constraints
+import qualified Ledger.Constraints as Constraints
 
 
 -- ----------------------------------------------------------------------
@@ -82,6 +81,8 @@ findTsOutput ts = do
 
 startTS :: OnChain.TokenSale -> PC.Contract (Last OnChain.TokenSale) s Text ()
 startTS ts = do
+  pkh <- PC.ownFirstPaymentPubKeyHash
+  
   let
     v       = Value.assetClassValue (OnChain.tsTT ts) 1 P.<>
               Ada.lovelaceValueOf (Ada.getLovelace Ledger.minAdaTxOut)
@@ -91,12 +92,14 @@ startTS ts = do
     tx      = Constraints.mustPayToTheScriptWithInlineDatum dat v P.<>
               Constraints.mustBeSignedBy (OnChain.tsSeller ts)
 
+    ts'     = OnChain.TokenSale pkh (OnChain.tsToken ts) (OnChain.tsTT ts)
+
   -- Submit tx to produce initial UTXO
   ledgerTx <- PC.submitTxConstraintsWith @OnChain.TS lookups tx
   void $ PC.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
 
   -- Tell token sale
-  PC.tell $ Last $ Just ts
+  PC.tell $ Last $ Just ts'
   PC.logInfo @P.String "produced token sale output"
 
 
@@ -148,6 +151,8 @@ addTokens ts n = do
     Just (oref, o, p) -> do
       PC.logInfo @P.String "token sale utxo found"
 
+      pkh <- PC.ownFirstPaymentPubKeyHash
+
       -- TODO: Check if script has minimum ADA. Add to tx if required.
       
       let
@@ -180,7 +185,7 @@ buyTokens ts n = do
       PC.logInfo @P.String "token sale utxo found"
 
       -- Check if contract holds enough tokens
-      if Value.assetClassValueOf (Ledger._decoratedTxOutValue o) (OnChain.tsToken ts) <= n
+      if Value.assetClassValueOf (Ledger._decoratedTxOutValue o) (OnChain.tsToken ts) < n
         then PC.logInfo @P.String "contract doesn't hold enough tokens"
         else do
           pkh <- PC.ownFirstPaymentPubKeyHash
@@ -274,7 +279,7 @@ withdraw ts n l = do
 -- Schema
 
 type TSStartSchema =
-        PC.Endpoint "start" OnChain.TokenSale --(Ledger.CurrencySymbol, Ledger.TokenName)
+        PC.Endpoint "start" OnChain.TokenSale -- (Ledger.CurrencySymbol, Ledger.TokenName)
 
 type TSUseSchema =
                PC.Endpoint "set price"  Integer
@@ -286,16 +291,14 @@ type TSUseSchema =
 -- ----------------------------------------------------------------------
 -- Endpoints
 
-startEndpoint
-    :: PC.Contract (Last OnChain.TokenSale) TSStartSchema Text ()
+startEndpoint :: PC.Contract (Last OnChain.TokenSale) TSStartSchema Text ()
 startEndpoint = forever
               $ PC.handleError PC.logError
               $ PC.awaitPromise
               $ PC.endpoint @"start" startTS
 
 
-useEndpoints
-    :: OnChain.TokenSale -> PC.Contract () TSUseSchema Text ()
+useEndpoints :: OnChain.TokenSale -> PC.Contract () TSUseSchema Text ()
 useEndpoints = useEndpoints'
 
 
@@ -315,7 +318,7 @@ useEndpoints' ts = forever
                   buyTokens' `PC.select`
                   withdraw'
   where
-    setPrice'  = PC.endpoint @"set price"  $ setPrice ts
+    setPrice'  = PC.endpoint @"set price"  $ setPrice  ts
     addTokens' = PC.endpoint @"add tokens" $ addTokens ts
     buyTokens' = PC.endpoint @"buy tokens" $ buyTokens ts
     withdraw'  = PC.endpoint @"withdraw"   $ P.uncurry $ withdraw ts
