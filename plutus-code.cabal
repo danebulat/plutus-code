@@ -83,7 +83,9 @@ library
         Signed.Emulator,
 
         MintBurn.OnChain,
+        MintBurn.OffChain,
         MintBurn.Deploy,
+        MintBurn.Emulator,
 
         -- Plutus Pioneer Program
         Week02.Burn,
