@@ -39,7 +39,6 @@ import qualified Ledger
 mkPolicy :: () -> Contexts.ScriptContext -> Bool
 mkPolicy () _ = True
 
-
 -- ----------------------------------------------------------------------
 -- Boilerplate
 
@@ -47,11 +46,27 @@ policy :: Scripts.MintingPolicy
 policy = V2LedgerApi.mkMintingPolicyScript
   $$(PlutusTx.compile [|| Scripts.mkUntypedMintingPolicy mkPolicy ||])
 
+-- CurrencySymbol (plutus-ledger-api)
 curSymbol :: Ledger.CurrencySymbol
 curSymbol = UtilsScriptsV2.scriptCurrencySymbol policy
 
+-- Script (plutus-ledger-api)
 policyScript :: V2LedgerApi.Script
 policyScript = V2LedgerApi.unMintingPolicyScript policy
 
+-- Validator (plutus-ledger-api)
 mintValidator :: V2LedgerApi.Validator
 mintValidator = V2LedgerApi.Validator policyScript
+
+-- Convert a `Builtins.BuiltinsData` value to a `cardano-api` script value 
+scriptHash :: V2LedgerApi.ScriptHash 
+scriptHash = UtilsScriptsV2.scriptHash policyScript
+
+-- Convert a `Builtins.BuiltinsData` value to a `cardano-api` script value 
+validatorHash :: UtilsScriptsV2.ValidatorHash
+validatorHash = UtilsScriptsV2.validatorHash mintValidator
+
+-- Script runting representation of a `Digest SHA256`
+mintingPolicyHash :: UtilsScriptsV2.MintingPolicyHash
+mintingPolicyHash = UtilsScriptsV2.mintingPolicyHash policy
+

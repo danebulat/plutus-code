@@ -42,15 +42,10 @@ has signed the minting or burning transaction.
 -- On-chain
 
 {-# INLINEABLE mkPolicy #-}
-mkPolicy
-    :: Ledger.PaymentPubKeyHash
-    -> ()
-    -> Contexts.ScriptContext
-    -> Bool
+mkPolicy :: Ledger.PaymentPubKeyHash -> () -> Contexts.ScriptContext -> Bool
 mkPolicy pkh () ctx = Contexts.txSignedBy
     (Contexts.scriptContextTxInfo ctx)
     (Ledger.unPaymentPubKeyHash pkh)
-
 
 -- ----------------------------------------------------------------------
 -- Boilerplate 

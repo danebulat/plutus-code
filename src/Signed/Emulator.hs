@@ -16,7 +16,6 @@ import Wallet.Emulator.Wallet              (knownWallet, mockWalletPaymentPubKey
 import qualified Ledger.TimeSlot           as TimeSlot
 import qualified Signed.OffChain           as OffChain
 
-
 test :: IO ()
 test = Emulator.runEmulatorTraceIO trace1
 

@@ -67,7 +67,7 @@ library
         TwoBeneficiaries.OffChain,
         TwoBeneficiaries.Emulator,
 
-        CrowdFunding.OnChain,
+        --CrowdFunding.OnChain,
       
         -- Minting Native Assets
         NFT.OnChain,
@@ -81,6 +81,8 @@ library
         Signed.OnChain,
         Signed.OffChain,
         Signed.Emulator,
+
+        MintBurn.OnChain,
 
         -- Plutus Pioneer Program
         Week02.Burn,

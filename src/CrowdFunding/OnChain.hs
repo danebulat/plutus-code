@@ -31,7 +31,6 @@ import qualified Prelude                                         as P
 import qualified Plutus.V1.Ledger.Interval                       as I
 import qualified Plutus.V1.Ledger.Value                          as V
 import qualified Ledger.Ada                                      as Ada
-import Ledger.Value (assetClassValueOf)
 
 -- ----------------------------------------------------------------------
 -- Parameter
@@ -46,7 +45,7 @@ data Param = Param
   , pTarget      :: !Lovelace
   } deriving (P.Show, P.Eq)
 
-PlutusTx.unstableMakeIsData ''Param
+PlutusTx.makeIsDataIndexed ''Param[('Param, 0)]
 PlutusTx.makeLift ''Param
 
 -- ----------------------------------------------------------------------
@@ -56,8 +55,7 @@ newtype Dat = Dat
   { dContributors :: [(L.PaymentPubKeyHash, V.Value)]
   }
 
-PlutusTx.unstableMakeIsData ''Dat
-PlutusTx.makeLift ''Dat
+PlutusTx.makeIsDataIndexed ''Dat[('Dat, 0)]
 
 -- ----------------------------------------------------------------------
 -- Redeemer
@@ -67,7 +65,10 @@ data Redeem
   | RemoveTokens !Lovelace  -- contributor removes lovelace
   | Withdraw                -- beneficiary withdraws lovelace
 
-PlutusTx.unstableMakeIsData ''Redeem
+PlutusTx.makeIsDataIndexed ''Redeem [ ('AddTokens,    0)
+                                    , ('RemoveTokens, 1)
+                                    , ('Withdraw,     2)
+                                    ]
 
 -- ----------------------------------------------------------------------
 -- Set Datum and Redeemer types 
@@ -179,7 +180,6 @@ validateCrowdfunding param dat red ctx =
     -- Check datum
     checkDatum :: Bool
     checkDatum = True
-
 
 -- ----------------------------------------------------------------------
 -- Boilerplate 

@@ -42,7 +42,6 @@ import qualified Plutus.V1.Ledger.Value    as Value
 
 import qualified Free.OnChain              as OnChain
 
-
 -- ----------------------------------------------------------------------
 -- Data types 
 
@@ -54,13 +53,11 @@ data MintParams = MintParams
               DataAeson.FromJSON,
               DataOpenApiSchema.ToSchema)
 
-
 -- ----------------------------------------------------------------------
 -- Schema
 
 type FreeSchema =
   PlutusContract.Endpoint "mint" MintParams
-
 
 -- ----------------------------------------------------------------------
 -- Mint endpoint
@@ -74,7 +71,6 @@ mint mp = do
   ledgerTx <- PlutusContract.submitTxConstraintsWith @Void lookups tx
   void $ PlutusContract.awaitTxConfirmed (Ledger.getCardanoTxId ledgerTx)
   PlutusContract.logInfo @P.String $ printf "forged %s" (P.show val)
-
 
 -- ----------------------------------------------------------------------
 -- Endpoints 
