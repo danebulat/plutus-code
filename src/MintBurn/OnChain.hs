@@ -36,7 +36,7 @@ data TokenParam = TokenParam
   { utxo   :: !LV2.TxOutRef
   , name   :: !LV2.TokenName 
   , minter :: !L.PaymentPubKeyHash
-  }
+  } deriving P.Show
 
 PlutusTx.makeIsDataIndexed ''TokenParam[('TokenParam, 0)]
 PlutusTx.makeLift ''TokenParam
