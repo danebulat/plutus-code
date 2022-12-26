@@ -19,19 +19,19 @@ index-state:
   , hackage.haskell.org 2022-11-14T00:20:02Z
   , cardano-haskell-packages 2022-11-17T04:56:26Z
 
-packages: Beneficiary 
+packages: Basics 
+          Beneficiary 
+          Crowdfunding
+          Free
+          Helper
           Guess
           Parameterized
-          Vesting
-          TwoBeneficiaries
+          MintBurn
           NFT
           Signed
-          Free
-          MintBurn
           Simple
-          Basics
-          Crowdfunding
-          Helper
+          TwoBeneficiaries
+          Vesting
           PlutusPioneerProgram/Week02
           PlutusPioneerProgram/Week06
           PlutusPioneerProgram/Week07
