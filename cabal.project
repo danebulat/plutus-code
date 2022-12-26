@@ -20,6 +20,20 @@ index-state:
   , cardano-haskell-packages 2022-11-17T04:56:26Z
 
 packages: ./.
+          Beneficiary 
+          Guess
+          Parameterized
+          Vesting
+          TwoBeneficiaries
+          NFT
+          Signed
+          Free
+          MintBurn
+          Simple
+          Basics
+          Crowdfunding
+          Helper
+
   
 -- Plutus apps revision from v1.0.0
 source-repository-package
