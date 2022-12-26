@@ -19,8 +19,7 @@ index-state:
   , hackage.haskell.org 2022-11-14T00:20:02Z
   , cardano-haskell-packages 2022-11-17T04:56:26Z
 
-packages: ./.
-          Beneficiary 
+packages: Beneficiary 
           Guess
           Parameterized
           Vesting
@@ -33,7 +32,10 @@ packages: ./.
           Basics
           Crowdfunding
           Helper
-
+          PlutusPioneerProgram/Week02
+          PlutusPioneerProgram/Week06
+          PlutusPioneerProgram/Week07
+          PlutusPioneerProgram/Week08
   
 -- Plutus apps revision from v1.0.0
 source-repository-package

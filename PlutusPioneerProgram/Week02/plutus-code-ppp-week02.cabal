@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               plutus-code-crowdfunding
+name:               plutus-code-ppp-week02
 version:            0.1.0.0
 stability:          experimental
 
@@ -42,7 +42,12 @@ library
     import: lang
 
     exposed-modules:
-      OnChain
+      Burn,
+      FortyTwo,
+      Gift,
+      Homework1,
+      Homework2,
+      IsData
 
     -- Plutus dependencies
     build-depends:

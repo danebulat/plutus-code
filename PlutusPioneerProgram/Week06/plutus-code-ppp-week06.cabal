@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               plutus-code-crowdfunding
+name:               plutus-code-ppp-week06
 version:            0.1.0.0
 stability:          experimental
 
@@ -42,7 +42,10 @@ library
     import: lang
 
     exposed-modules:
-      OnChain
+      OnChain,
+      OffChain,
+      Emulator,
+      Utils
 
     -- Plutus dependencies
     build-depends:
@@ -78,4 +81,21 @@ library
       serialise -any,
       base16-bytestring
     hs-source-dirs: src
+    
+executable token-policy
+    main-is:          token-policy.hs
+    hs-source-dirs:   app
+    ghc-options:      -Wall
+    build-depends:
+      base >= 4.9 && < 5,
+      plutus-code-ppp-week06
+    default-language: Haskell2010
 
+executable token-name
+    main-is:          token-name.hs
+    hs-source-dirs:   app
+    ghc-options:      -Wall
+    build-depends:
+      base >= 4.9 && < 5,
+      plutus-code-ppp-week06
+    default-language: Haskell2010

@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               plutus-code-crowdfunding
+name:               plutus-code-ppp-week07
 version:            0.1.0.0
 stability:          experimental
 
@@ -42,7 +42,11 @@ library
     import: lang
 
     exposed-modules:
-      OnChain
+      EvenOdd.OnChain,
+      EvenOdd.OffChain,
+      EvenOdd.Emulator,
+
+      StateMachine.OnChain
 
     -- Plutus dependencies
     build-depends:
